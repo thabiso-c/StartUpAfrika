@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { onAuthStateChanged, User } from "firebase/auth";
+import { auth } from "./config/firebase";
 import Header from "./components/Header";
 import Hero from "./components/Hero";
 import InterviewCard from "./components/InterviewCard";
@@ -19,6 +21,14 @@ export default function App() {
 
   const [currentTab, setCurrentTab] = useState<string>("explore");
   const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+    });
+    return () => unsubscribe();
+  }, []);
 
   const selectedInterview = interviews.find((i) => i.id === selectedInterviewId);
 
@@ -44,7 +54,7 @@ export default function App() {
         return (
           <div className="animate-fade-in" id="explore-view">
             {/* Minimalist Substack Hero block */}
-            <Hero />
+            <Hero user={user} />
 
             {/* Main grid feed */}
             <div className="max-w-6xl mx-auto px-4 py-16">
@@ -109,6 +119,7 @@ export default function App() {
           currentTab={selectedInterviewId ? "explore" : currentTab} 
           setCurrentTab={handleTabChange} 
           onOpenSubscribe={handleOpenSubscribe}
+          user={user}
         />
 
         {/* Dynamic Inner view */}

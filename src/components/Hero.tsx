@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Mail, CheckCircle2, AlertCircle } from "lucide-react";
+import { User } from "firebase/auth";
 
-export default function Hero() {
+export default function Hero({ user }: { user?: User | null }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -98,30 +99,38 @@ export default function Hero() {
             Subscribe to new updated interviews for readability like Substack.
           </p>
 
-          <form onSubmit={handleSubscribe} className="space-y-3.5">
-            <div>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Email address"
-                required
-                className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm"
-                disabled={loading}
-              />
+          {user ? (
+            <div className="text-center py-6 bg-emerald-50 rounded-xl border border-emerald-100">
+              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-3" />
+              <p className="font-semibold text-emerald-900">You are signed in!</p>
+              <p className="text-sm text-emerald-700 mt-1">You'll receive all updates at {user.email}.</p>
             </div>
-            
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 bg-emerald-800 text-white font-bold tracking-wider uppercase rounded-lg text-xs transition-all hover:bg-emerald-900 active:scale-95 flex items-center justify-center"
-            >
-              {loading ? "SUBSCRIBING..." : "SUBSCRIBE"}
-            </button>
-          </form>
+          ) : (
+            <form onSubmit={handleSubscribe} className="space-y-3.5">
+              <div>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email address"
+                  required
+                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm"
+                  disabled={loading}
+                />
+              </div>
+              
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 bg-emerald-800 text-white font-bold tracking-wider uppercase rounded-lg text-xs transition-all hover:bg-emerald-900 active:scale-95 flex items-center justify-center"
+              >
+                {loading ? "SUBSCRIBING..." : "SUBSCRIBE"}
+              </button>
+            </form>
+          )}
 
           {/* Inline alert messages */}
-          {status && (
+          {status && !user && (
             <div
               className={`mt-4 p-3 rounded-lg text-xs font-semibold flex items-center gap-2.5 ${
                 status.type === "success"

@@ -7,8 +7,19 @@ import dotenv from "dotenv";
 import multer from "multer";
 import fs from "fs";
 import crypto from "crypto";
+import * as admin from "firebase-admin";
+import { Resend } from "resend";
 
 dotenv.config();
+
+// Initialize Firebase Admin (assumes GOOGLE_APPLICATION_CREDENTIALS is set, or FIREBASE_PROJECT_ID)
+if (!admin.apps.length) {
+  admin.initializeApp({
+    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "startup-afrika"
+  });
+}
+const db = admin.firestore();
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 // Standard ESM workarounds removed since Vercel bundles to CommonJS where import.meta is empty
 
@@ -65,11 +76,7 @@ function requireEditorToken(req: express.Request, res: express.Response, next: e
   next();
 }
 
-// In-memory data store for the live session (resets on server restart, but works perfectly for full-stack prototype)
-const subscribers: Array<{ email: string; date: string }> = [
-  { email: "slyzahofficial@gmail.com", date: new Date().toISOString() },
-  { email: "tech_enthusiast@startup.afrika", date: new Date().toISOString() }
-];
+// Firestore is now used for subscribers and users
 
 const submissions: Array<{
   id: string;
@@ -136,7 +143,12 @@ app.post("/api/editor/articles", requireEditorToken, (req, res) => {
   if (id) {
     const idx = articles.findIndex((a) => a.id === id);
     if (idx !== -1) {
+      const oldStatus = articles[idx].status;
       articles[idx] = { ...articles[idx], title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, body, status, wordCount, updatedAt: new Date().toISOString() };
+      
+      if (oldStatus === "draft" && status === "published") {
+        sendPublishEmail(title, subtitle);
+      }
       return res.json({ success: true, article: articles[idx] });
     }
   }
@@ -157,8 +169,39 @@ app.post("/api/editor/articles", requireEditorToken, (req, res) => {
     updatedAt: new Date().toISOString(),
   };
   articles.push(newArticle);
+
+  if (status === "published") {
+    sendPublishEmail(title, subtitle);
+  }
   res.json({ success: true, article: newArticle });
 });
+
+async function sendPublishEmail(title: string, subtitle: string) {
+  try {
+    const snapshot = await db.collection("subscribers").get();
+    const emails = snapshot.docs.map(doc => doc.data().email).filter(Boolean);
+    
+    // We send to users collection as well if they aren't in subscribers (or assume they are in subscribers)
+    const usersSnapshot = await db.collection("users").get();
+    const userEmails = usersSnapshot.docs.map(doc => doc.data().email).filter(Boolean);
+    
+    // Combine and deduplicate
+    const allEmails = Array.from(new Set([...emails, ...userEmails]));
+    
+    if (allEmails.length > 0 && process.env.RESEND_API_KEY) {
+      // Resend allows up to 50 recipients per batch in the 'to' or 'bcc' field. For a real app, chunk the array.
+      await resend.emails.send({
+        from: 'Startup Afrika <onboarding@resend.dev>', // Use a verified domain or Resend testing domain
+        to: allEmails.slice(0, 50),
+        subject: `New Article: ${title}`,
+        html: `<p>A new article has been published on Startup Afrika: <strong>${title}</strong></p><p>${subtitle}</p><p><a href="https://startup.afrika">Read it now</a></p>`
+      });
+      console.log(`Announcement email sent to ${Math.min(allEmails.length, 50)} subscribers.`);
+    }
+  } catch (error) {
+    console.error("Failed to send announcement emails:", error);
+  }
+}
 
 app.delete("/api/editor/articles/:id", requireEditorToken, (req, res) => {
   const idx = articles.findIndex((a) => a.id === req.params.id);
@@ -180,22 +223,65 @@ app.get("/api/health", (req, res) => {
 });
 
 // Subscriber Endpoints
-app.get("/api/subscribers", (req, res) => {
-  res.json(subscribers);
+app.get("/api/subscribers", async (req, res) => {
+  try {
+    const snapshot = await db.collection("subscribers").get();
+    const subs = snapshot.docs.map(doc => doc.data());
+    res.json(subs);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch subscribers" });
+  }
 });
 
-app.post("/api/subscribers", (req, res) => {
+app.post("/api/subscribers", async (req, res) => {
   const { email } = req.body;
   if (!email || !email.includes("@")) {
     return res.status(400).json({ error: "Invalid email address" });
   }
-  const exists = subscribers.some((s) => s.email.toLowerCase() === email.toLowerCase());
-  if (exists) {
-    return res.status(400).json({ error: "Email is already subscribed" });
+  try {
+    const docRef = db.collection("subscribers").doc(email.toLowerCase());
+    const docSnap = await docRef.get();
+    if (docSnap.exists) {
+      return res.status(400).json({ error: "Email is already subscribed" });
+    }
+    const newSub = { email: email.toLowerCase(), date: new Date().toISOString() };
+    await docRef.set(newSub);
+    res.json({ success: true, subscriber: newSub });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to subscribe" });
   }
-  const newSub = { email, date: new Date().toISOString() };
-  subscribers.push(newSub);
-  res.json({ success: true, subscriber: newSub });
+});
+
+// User Sync Endpoint
+app.post("/api/users/sync", async (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
+  
+  const idToken = authHeader.split("Bearer ")[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const userRef = db.collection("users").doc(decodedToken.uid);
+    await userRef.set({
+      email: decodedToken.email,
+      name: decodedToken.name || "",
+      picture: decodedToken.picture || "",
+      lastLogin: new Date().toISOString()
+    }, { merge: true });
+    
+    // Auto-subscribe
+    if (decodedToken.email) {
+       const subRef = db.collection("subscribers").doc(decodedToken.email.toLowerCase());
+       const subSnap = await subRef.get();
+       if (!subSnap.exists) {
+         await subRef.set({ email: decodedToken.email.toLowerCase(), date: new Date().toISOString(), source: 'signup' });
+       }
+    }
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error("User sync error", error);
+    res.status(401).json({ error: "Invalid token" });
+  }
 });
 
 // Submissions Endpoints
