@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { fileURLToPath } from "url";
-import { createServer as createViteServer } from "vite";
+// Vite will be dynamically imported locally
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
 import multer from "multer";
@@ -295,6 +295,7 @@ app.post("/api/generate-outreach", async (req, res) => {
 // Configure Vite or Static Assets serving
 async function startServer() {
   if (process.env.NODE_ENV !== "production") {
+    const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
