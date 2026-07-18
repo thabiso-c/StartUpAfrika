@@ -12,6 +12,10 @@ interface HeaderProps {
 
 export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, user }: HeaderProps) {
   const handleGoogleSignIn = async () => {
+    if (!auth) {
+      alert("Authentication is currently disabled because the Firebase API key is not configured.");
+      return;
+    }
     try {
       const result = await signInWithPopup(auth, googleProvider);
       // Send token to backend to save in Firestore

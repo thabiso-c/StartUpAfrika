@@ -12,10 +12,21 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID || ""
 };
 
-// Initialize Firebase only once
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+let app;
+let auth: any = null;
+let googleProvider: any = null;
 
-const auth = getAuth(app);
-const googleProvider = new GoogleAuthProvider();
+try {
+  // Only initialize if an API key is provided
+  if (firebaseConfig.apiKey) {
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+    auth = getAuth(app);
+    googleProvider = new GoogleAuthProvider();
+  } else {
+    console.warn("Firebase API key is missing. Authentication features will be disabled.");
+  }
+} catch (error) {
+  console.error("Firebase initialization error:", error);
+}
 
 export { app, auth, googleProvider };
