@@ -7,10 +7,16 @@ import OutreachGenerator from "./components/OutreachGenerator";
 import SubmitBlueprint from "./components/SubmitBlueprint";
 import AdminDashboard from "./components/AdminDashboard";
 import Footer from "./components/Footer";
+import EditorGate from "./components/editor/EditorGate";
 import { interviews } from "./data/interviews";
 import { AlertCircle, HelpCircle, BookOpen } from "lucide-react";
 
 export default function App() {
+  // Route /editor to the private editorial workspace
+  if (window.location.pathname.startsWith("/editor")) {
+    return <EditorGate />;
+  }
+
   const [currentTab, setCurrentTab] = useState<string>("explore");
   const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
 

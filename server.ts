@@ -4,6 +4,9 @@ import { fileURLToPath } from "url";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import dotenv from "dotenv";
+import multer from "multer";
+import fs from "fs";
+import crypto from "crypto";
 
 dotenv.config();
 
@@ -15,6 +18,52 @@ const app = express();
 const PORT = 3000;
 
 app.use(express.json());
+
+// Serve uploaded images as static files
+app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
+
+// Multer configuration for image uploads
+const uploadDir = path.join(process.cwd(), "public", "uploads");
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `img_${Date.now()}_${Math.random().toString(36).slice(2)}${ext}`);
+  },
+});
+const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
+
+// ── Editor Auth & Data ────────────────────────────────────────────────────────
+const EDITOR_EMAIL = "letsokothabiso@gmail.com";
+const editorSessions = new Set<string>(); // active session tokens
+
+type ArticleStatus = "draft" | "published";
+interface Article {
+  id: string;
+  title: string;
+  subtitle: string;
+  founderName: string;
+  startupName: string;
+  location: string;
+  foundedYear: string;
+  tags: string[];
+  coverImage: string;
+  body: string;
+  status: ArticleStatus;
+  wordCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+const articles: Article[] = [];
+
+function requireEditorToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const token = req.headers["x-editor-token"] as string;
+  if (!token || !editorSessions.has(token)) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  next();
+}
 
 // In-memory data store for the live session (resets on server restart, but works perfectly for full-stack prototype)
 const subscribers: Array<{ email: string; date: string }> = [
@@ -50,7 +99,82 @@ const ai = process.env.GEMINI_API_KEY
     })
   : null;
 
-// API Routes
+// ── Editor Auth Routes ───────────────────────────────────────────────────────
+app.post("/api/editor/login", (req, res) => {
+  const { email, password } = req.body;
+  const expectedPassword = process.env.EDITOR_PASSWORD;
+  if (!expectedPassword) {
+    return res.status(500).json({ error: "EDITOR_PASSWORD environment variable is not set." });
+  }
+  if (email !== EDITOR_EMAIL || password !== expectedPassword) {
+    return res.status(401).json({ error: "Invalid credentials." });
+  }
+  const token = crypto.randomBytes(32).toString("hex");
+  editorSessions.add(token);
+  res.json({ success: true, token });
+});
+
+app.post("/api/editor/verify", (req, res) => {
+  const { token } = req.body;
+  res.json({ valid: !!(token && editorSessions.has(token)) });
+});
+
+app.post("/api/editor/logout", (req, res) => {
+  const token = req.headers["x-editor-token"] as string;
+  if (token) editorSessions.delete(token);
+  res.json({ success: true });
+});
+
+// ── Editor Articles Routes ────────────────────────────────────────────────────
+app.get("/api/editor/articles", requireEditorToken, (_req, res) => {
+  res.json(articles.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+});
+
+app.post("/api/editor/articles", requireEditorToken, (req, res) => {
+  const { id, title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, body, status } = req.body;
+  const wordCount = body ? body.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length : 0;
+  if (id) {
+    const idx = articles.findIndex((a) => a.id === id);
+    if (idx !== -1) {
+      articles[idx] = { ...articles[idx], title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, body, status, wordCount, updatedAt: new Date().toISOString() };
+      return res.json({ success: true, article: articles[idx] });
+    }
+  }
+  const newArticle: Article = {
+    id: `art_${Date.now()}`,
+    title: title || "Untitled Article",
+    subtitle: subtitle || "",
+    founderName: founderName || "",
+    startupName: startupName || "",
+    location: location || "",
+    foundedYear: foundedYear || "",
+    tags: tags || [],
+    coverImage: coverImage || "",
+    body: body || "",
+    status: status || "draft",
+    wordCount,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  articles.push(newArticle);
+  res.json({ success: true, article: newArticle });
+});
+
+app.delete("/api/editor/articles/:id", requireEditorToken, (req, res) => {
+  const idx = articles.findIndex((a) => a.id === req.params.id);
+  if (idx === -1) return res.status(404).json({ error: "Article not found" });
+  articles.splice(idx, 1);
+  res.json({ success: true });
+});
+
+// ── Editor Image Upload ───────────────────────────────────────────────────────
+app.post("/api/editor/upload", requireEditorToken, upload.single("image"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  const url = `/uploads/${req.file.filename}`;
+  res.json({ success: true, url });
+});
+
+// ── Public API Routes ─────────────────────────────────────────────────────────
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", geminiConfigured: !!ai });
 });
