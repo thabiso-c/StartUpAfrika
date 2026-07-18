@@ -13,13 +13,19 @@ import { Resend } from "resend";
 dotenv.config();
 
 // Initialize Firebase Admin (assumes GOOGLE_APPLICATION_CREDENTIALS is set, or FIREBASE_PROJECT_ID)
-if (!admin.apps.length) {
-  admin.initializeApp({
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "startup-afrika"
-  });
+let db: admin.firestore.Firestore | null = null;
+try {
+  if (!admin.apps.length) {
+    admin.initializeApp({
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "startup-afrika"
+    });
+  }
+  db = admin.firestore();
+} catch (error) {
+  console.error("Firebase Admin initialization error:", error);
 }
-const db = admin.firestore();
-const resend = new Resend(process.env.RESEND_API_KEY);
+
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 
 // Standard ESM workarounds removed since Vercel bundles to CommonJS where import.meta is empty
 
@@ -177,6 +183,10 @@ app.post("/api/editor/articles", requireEditorToken, (req, res) => {
 });
 
 async function sendPublishEmail(title: string, subtitle: string) {
+  if (!db || !resend) {
+    console.warn("Skipping email announcement: Firebase or Resend is not configured.");
+    return;
+  }
   try {
     const snapshot = await db.collection("subscribers").get();
     const emails = snapshot.docs.map(doc => doc.data().email).filter(Boolean);
@@ -224,6 +234,7 @@ app.get("/api/health", (req, res) => {
 
 // Subscriber Endpoints
 app.get("/api/subscribers", async (req, res) => {
+  if (!db) return res.json([]);
   try {
     const snapshot = await db.collection("subscribers").get();
     const subs = snapshot.docs.map(doc => doc.data());
@@ -234,6 +245,7 @@ app.get("/api/subscribers", async (req, res) => {
 });
 
 app.post("/api/subscribers", async (req, res) => {
+  if (!db) return res.status(503).json({ error: "Database not configured" });
   const { email } = req.body;
   if (!email || !email.includes("@")) {
     return res.status(400).json({ error: "Invalid email address" });
@@ -254,6 +266,7 @@ app.post("/api/subscribers", async (req, res) => {
 
 // User Sync Endpoint
 app.post("/api/users/sync", async (req, res) => {
+  if (!db) return res.status(503).json({ error: "Database not configured" });
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
   
