@@ -53,7 +53,6 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ── Editor Auth & Data ────────────────────────────────────────────────────────
 const EDITOR_EMAIL = "letsokothabiso@gmail.com";
-const editorSessions = new Set<string>(); // active session tokens
 
 type ArticleStatus = "draft" | "published";
 interface Article {
@@ -76,7 +75,13 @@ const articles: Article[] = [];
 
 function requireEditorToken(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = req.headers["x-editor-token"] as string;
-  if (!token || !editorSessions.has(token)) {
+  const expectedPassword = process.env.EDITOR_PASSWORD;
+  if (!expectedPassword) {
+    return res.status(500).json({ error: "Server configuration error" });
+  }
+  const validToken = crypto.createHmac("sha256", expectedPassword).update(EDITOR_EMAIL).digest("hex");
+  
+  if (!token || token !== validToken) {
     return res.status(401).json({ error: "Unauthorized" });
   }
   next();
@@ -122,19 +127,22 @@ app.post("/api/editor/login", (req, res) => {
   if (email !== EDITOR_EMAIL || password !== expectedPassword) {
     return res.status(401).json({ error: "Invalid credentials." });
   }
-  const token = crypto.randomBytes(32).toString("hex");
-  editorSessions.add(token);
+  const token = crypto.createHmac("sha256", expectedPassword).update(EDITOR_EMAIL).digest("hex");
   res.json({ success: true, token });
 });
 
 app.post("/api/editor/verify", (req, res) => {
   const { token } = req.body;
-  res.json({ valid: !!(token && editorSessions.has(token)) });
+  const expectedPassword = process.env.EDITOR_PASSWORD;
+  if (!expectedPassword) {
+    return res.json({ valid: false });
+  }
+  const validToken = crypto.createHmac("sha256", expectedPassword).update(EDITOR_EMAIL).digest("hex");
+  res.json({ valid: !!(token && token === validToken) });
 });
 
 app.post("/api/editor/logout", (req, res) => {
-  const token = req.headers["x-editor-token"] as string;
-  if (token) editorSessions.delete(token);
+  // Stateless logout: the client just deletes their token locally
   res.json({ success: true });
 });
 
