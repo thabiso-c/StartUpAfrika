@@ -1,0 +1,6 @@
+{
+  "name": "Startup Afrika",
+  "description": "A minimalist news and media platform for deconstructing the practical blueprints behind successful African apps and websites.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
