@@ -19,12 +19,13 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Serve uploaded images as static files
+// Serve uploaded images as static files (local dev only; Vercel uses /tmp)
 app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
-// Multer configuration for image uploads
-const uploadDir = path.join(process.cwd(), "public", "uploads");
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+// Multer configuration — use /tmp in production (Vercel read-only FS), public/uploads locally
+const isVercel = !!process.env.VERCEL;
+const uploadDir = isVercel ? "/tmp/uploads" : path.join(process.cwd(), "public", "uploads");
+try { if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true }); } catch (_) {}
 const storage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, uploadDir),
   filename: (_req, file, cb) => {
