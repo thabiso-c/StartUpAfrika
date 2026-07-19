@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import multer from "multer";
 import fs from "fs";
 import crypto from "crypto";
-import { initializeApp, getApps } from "firebase-admin/app";
+import { initializeApp, getApps, cert } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { Resend } from "resend";
 
@@ -95,13 +95,42 @@ dotenv.config();
 let db: Firestore | null = null;
 try {
   if (!getApps().length) {
-    initializeApp({
-      projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "startup-afrika"
-    });
+    const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+
+    if (serviceAccountVar) {
+      try {
+        const serviceAccount = JSON.parse(serviceAccountVar);
+        initializeApp({
+          credential: cert(serviceAccount),
+          projectId: projectId || serviceAccount.project_id
+        });
+        console.log("Firebase Admin successfully initialized via service account.");
+      } catch (parseErr) {
+        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT, falling back:", parseErr);
+        initializeApp({ projectId: projectId || "startup-afrika" });
+      }
+    } else if (projectId) {
+      initializeApp({ projectId });
+      console.log(`Firebase Admin initialized with explicit projectId: ${projectId}`);
+    } else {
+      // Auto-discover credentials and projectId on Google Cloud Run
+      initializeApp();
+      console.log("Firebase Admin initialized via Google Cloud ADC auto-discovery.");
+    }
   }
   db = getFirestore();
 } catch (error) {
-  console.error("Firebase Admin initialization error:", error);
+  console.error("Firebase Admin initialization error, trying default project fallback:", error);
+  try {
+    if (!getApps().length) {
+      initializeApp({ projectId: "startup-afrika" });
+    }
+    db = getFirestore();
+    console.log("Firebase Admin initialized via default project fallback.");
+  } catch (fallbackError) {
+    console.error("Firebase Admin fallback initialization also failed:", fallbackError);
+  }
 }
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -227,6 +256,7 @@ app.get("/api/editor/articles", requireEditorToken, async (_req, res) => {
       return res.json(fetched);
     } catch (error) {
       console.error("Firestore fetch articles error:", error);
+      return res.status(500).json({ error: "Failed to fetch articles from database", details: error instanceof Error ? error.message : String(error) });
     }
   }
   res.json(articles.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
@@ -279,6 +309,7 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
       return res.json({ success: true, article: savedArticle });
     } catch (error) {
       console.error("Firestore save article error:", error);
+      return res.status(500).json({ success: false, error: "Failed to save article to database", details: error instanceof Error ? error.message : String(error) });
     }
   }
 

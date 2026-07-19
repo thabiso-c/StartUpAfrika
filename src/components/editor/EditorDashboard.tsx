@@ -67,10 +67,16 @@ export default function EditorDashboard({ token, onLogout }: Props) {
       headers,
       body: JSON.stringify(article),
     });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || `Server responded with status ${res.status}`);
+    }
     const data = await res.json();
     if (data.success) {
       await fetchArticles();
       setActiveArticle(data.article);
+    } else {
+      throw new Error(data.error || "Failed to save article");
     }
   };
 

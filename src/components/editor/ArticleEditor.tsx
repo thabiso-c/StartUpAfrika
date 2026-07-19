@@ -169,19 +169,25 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
 
   const handleSave = async () => {
     setSaving(true);
-    const body = editorRef.current?.innerHTML || "";
-    const payload: Article = {
-      ...article,
-      id: articleId.current,
-      title: title || "Untitled Article",
-      subtitle, founderName, startupName, location, foundedYear,
-      tags, coverImage, body, status, wordCount,
-      coverHeight, coverPosition,
-      updatedAt: new Date().toISOString(),
-    };
-    await onSave(payload);
-    setSaving(false);
-    setSavedAt(new Date().toLocaleTimeString());
+    try {
+      const body = editorRef.current?.innerHTML || "";
+      const payload: Article = {
+        ...article,
+        id: articleId.current,
+        title: title || "Untitled Article",
+        subtitle, founderName, startupName, location, foundedYear,
+        tags, coverImage, body, status, wordCount,
+        coverHeight, coverPosition,
+        updatedAt: new Date().toISOString(),
+      };
+      await onSave(payload);
+      setSavedAt(new Date().toLocaleTimeString());
+    } catch (error: any) {
+      console.error("Save failed:", error);
+      alert(error.message || "Failed to save article draft.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleAIPolish = async () => {
