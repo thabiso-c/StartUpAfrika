@@ -136,8 +136,14 @@ try {
   const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
   const hasCredentials = !!(serviceAccountVar || process.env.GOOGLE_APPLICATION_CREDENTIALS);
+  const isProduction = process.env.NODE_ENV === "production" || !!process.env.VERCEL || !!process.env.K_SERVICE;
 
-  if (hasCredentials || projectId) {
+  // Only initialize Firestore if:
+  // 1. We have explicit credentials provided (works anywhere)
+  // 2. We are in production and have a projectId (ambient GCP credentials available)
+  const shouldInitializeFirestore = hasCredentials || (isProduction && !!projectId);
+
+  if (shouldInitializeFirestore) {
     if (!getApps().length) {
       if (serviceAccountVar) {
         try {
@@ -161,7 +167,7 @@ try {
     }
     db = getFirestore();
   } else {
-    console.log("No explicit Firebase credentials or Project ID provided. Firestore is disabled; falling back to local file persistence.");
+    console.log("Firestore is disabled (no credentials in development or missing project ID in production); falling back to local file persistence.");
     db = null;
   }
 } catch (error) {
@@ -313,8 +319,8 @@ app.get("/api/editor/articles", requireEditorToken, async (_req, res) => {
       fetched.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       return res.json(fetched);
     } catch (error) {
-      console.error("Firestore fetch articles error:", error);
-      return res.status(500).json({ error: "Failed to fetch articles from database", details: error instanceof Error ? error.message : String(error) });
+      console.error("Firestore fetch articles error, falling back to local files:", error);
+      db = null; // Disable Firestore dynamically on failure
     }
   }
   res.json(articles.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
@@ -367,8 +373,8 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
 
       return res.json({ success: true, article: savedArticle, emailResult });
     } catch (error) {
-      console.error("Firestore save article error:", error);
-      return res.status(500).json({ success: false, error: "Failed to save article to database", details: error instanceof Error ? error.message : String(error) });
+      console.error("Firestore save article error, falling back to local files:", error);
+      db = null; // Disable Firestore dynamically on failure
     }
   }
 
@@ -547,7 +553,8 @@ app.post("/api/articles/sync", async (req, res) => {
       });
       return res.json({ success: true, articles: dbArticles });
     } catch (error) {
-      console.error("Firestore sync articles error:", error);
+      console.error("Firestore sync articles error, falling back:", error);
+      db = null;
     }
   }
 
@@ -583,7 +590,8 @@ app.get("/api/articles", async (req, res) => {
       fetched.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       return res.json(fetched);
     } catch (error) {
-      console.error("Firestore fetch published articles error:", error);
+      console.error("Firestore fetch published articles error, falling back:", error);
+      db = null;
     }
   }
   const published = articles
@@ -605,7 +613,8 @@ app.get("/api/subscribers", async (req, res) => {
     const subs = snapshot.docs.map(doc => doc.data());
     res.json(subs);
   } catch (error) {
-    console.error("Firestore fetch subscribers error:", error);
+    console.error("Firestore fetch subscribers error, falling back:", error);
+    db = null;
     res.json(subscribers);
   }
 });
@@ -638,7 +647,8 @@ app.post("/api/subscribers", async (req, res) => {
     await docRef.set(newSub);
     res.json({ success: true, subscriber: newSub });
   } catch (error) {
-    console.error("Firestore subscribe error:", error);
+    console.error("Firestore subscribe error, falling back:", error);
+    db = null;
     const exists = subscribers.some(s => s.email === normalizedEmail);
     if (exists) {
       return res.status(400).json({ error: "Email is already subscribed" });
@@ -723,7 +733,8 @@ app.post("/api/users/demo-login", async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Demo login error:", error);
+    console.error("Demo login error, falling back:", error);
+    db = null;
     const user = {
       uid: normalizedEmail,
       email: normalizedEmail,
@@ -757,45 +768,50 @@ app.post("/api/users/sync", async (req, res) => {
   const idToken = authHeader.split("Bearer ")[1];
   try {
     const decodedToken = await verifyFirebaseIdToken(idToken);
-    if (!db) {
-      const user = {
-        uid: decodedToken.uid,
-        email: decodedToken.email || "",
-        name: decodedToken.name || "",
-        picture: decodedToken.picture || "",
-        lastLogin: new Date().toISOString()
-      };
-      const exists = users.some(u => u.uid === user.uid);
-      if (!exists) users.push(user);
-
-      if (decodedToken.email) {
-        const subExists = subscribers.some(s => s.email === decodedToken.email!.toLowerCase());
-        if (!subExists) {
-          subscribers.push({ email: decodedToken.email.toLowerCase(), date: new Date().toISOString(), source: 'signup' });
+    
+    if (db) {
+      try {
+        const userRef = db.collection("users").doc(decodedToken.uid);
+        await userRef.set({
+          email: decodedToken.email,
+          name: decodedToken.name || "",
+          picture: decodedToken.picture || "",
+          lastLogin: new Date().toISOString()
+        }, { merge: true });
+        
+        // Auto-subscribe
+        if (decodedToken.email) {
+           const subRef = db.collection("subscribers").doc(decodedToken.email.toLowerCase());
+           const subSnap = await subRef.get();
+           if (!subSnap.exists) {
+             await subRef.set({ email: decodedToken.email.toLowerCase(), date: new Date().toISOString(), source: 'signup' });
+           }
         }
+        return res.json({ success: true });
+      } catch (dbErr) {
+        console.error("Firestore user sync error, falling back to local files:", dbErr);
+        db = null;
       }
-      saveJsonArray(USERS_FILE, users);
-      saveJsonArray(SUBSCRIBERS_FILE, subscribers);
-      return res.json({ success: true });
     }
 
-    const userRef = db.collection("users").doc(decodedToken.uid);
-    await userRef.set({
-      email: decodedToken.email,
+    const user = {
+      uid: decodedToken.uid,
+      email: decodedToken.email || "",
       name: decodedToken.name || "",
       picture: decodedToken.picture || "",
       lastLogin: new Date().toISOString()
-    }, { merge: true });
-    
-    // Auto-subscribe
-    if (decodedToken.email) {
-       const subRef = db.collection("subscribers").doc(decodedToken.email.toLowerCase());
-       const subSnap = await subRef.get();
-       if (!subSnap.exists) {
-         await subRef.set({ email: decodedToken.email.toLowerCase(), date: new Date().toISOString(), source: 'signup' });
-       }
-    }
+    };
+    const exists = users.some(u => u.uid === user.uid);
+    if (!exists) users.push(user);
 
+    if (decodedToken.email) {
+      const subExists = subscribers.some(s => s.email === decodedToken.email!.toLowerCase());
+      if (!subExists) {
+        subscribers.push({ email: decodedToken.email.toLowerCase(), date: new Date().toISOString(), source: 'signup' });
+      }
+    }
+    saveJsonArray(USERS_FILE, users);
+    saveJsonArray(SUBSCRIBERS_FILE, subscribers);
     res.json({ success: true });
   } catch (error) {
     console.error("User sync error", error);
