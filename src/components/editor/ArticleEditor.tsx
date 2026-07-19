@@ -5,6 +5,8 @@ import {
   Save, Eye, Edit3, X, Sparkles, Upload, Tag,
   ChevronDown, CheckCircle, Clock, Loader, ArrowLeft
 } from "lucide-react";
+import { storage } from "../../config/firebase";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 interface Article {
   id: string; title: string; subtitle: string;
@@ -82,35 +84,39 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
   };
 
   const handleCoverUpload = async (file: File) => {
+    if (!storage) {
+      alert("Firebase Storage is not configured.");
+      return;
+    }
     setUploadingCover(true);
-    const form = new FormData();
-    form.append("image", file);
     try {
-      const res = await fetch("/api/editor/upload", {
-        method: "POST",
-        headers: { [EDITOR_HEADER]: token },
-        body: form,
-      });
-      const data = await res.json();
-      if (data.url) setCoverImage(data.url);
+      const ext = file.name.split('.').pop();
+      const storageRef = ref(storage, `editor/covers/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      setCoverImage(url);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to upload cover image.");
     } finally { setUploadingCover(false); }
   };
 
   const handleInlineImageUpload = async (file: File) => {
+    if (!storage) {
+      alert("Firebase Storage is not configured.");
+      return;
+    }
     setUploadingInline(true);
-    const form = new FormData();
-    form.append("image", file);
     try {
-      const res = await fetch("/api/editor/upload", {
-        method: "POST",
-        headers: { [EDITOR_HEADER]: token },
-        body: form,
-      });
-      const data = await res.json();
-      if (data.url) {
-        const img = `<img src="${data.url}" alt="Article image" style="max-width:100%;border-radius:8px;margin:12px 0;" />`;
-        exec("insertHTML", img);
-      }
+      const ext = file.name.split('.').pop();
+      const storageRef = ref(storage, `editor/inline/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      const img = `<img src="${url}" alt="Article image" style="max-width:100%;border-radius:8px;margin:12px 0;" />`;
+      exec("insertHTML", img);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to upload image.");
     } finally { setUploadingInline(false); }
   };
 

@@ -1,5 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
   // Use Vite's environment variables approach
@@ -15,6 +16,7 @@ const firebaseConfig = {
 let app;
 let auth: any = null;
 let googleProvider: any = null;
+let storage: any = null;
 
 try {
   // Only initialize if an API key is provided
@@ -22,6 +24,7 @@ try {
     app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
     auth = getAuth(app);
     googleProvider = new GoogleAuthProvider();
+    storage = getStorage(app);
   } else {
     console.warn("Firebase API key is missing. Authentication features will be disabled.");
   }
@@ -29,4 +32,4 @@ try {
   console.error("Firebase initialization error:", error);
 }
 
-export { app, auth, googleProvider };
+export { app, auth, googleProvider, storage };

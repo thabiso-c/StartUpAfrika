@@ -222,17 +222,10 @@ async function sendPublishEmail(title: string, subtitle: string) {
 }
 
 app.delete("/api/editor/articles/:id", requireEditorToken, (req, res) => {
-  const idx = articles.findIndex((a) => a.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: "Article not found" });
-  articles.splice(idx, 1);
+  const { id } = req.params;
+  const idx = articles.findIndex((a) => a.id === id);
+  if (idx !== -1) articles.splice(idx, 1);
   res.json({ success: true });
-});
-
-// ── Editor Image Upload ───────────────────────────────────────────────────────
-app.post("/api/editor/upload", requireEditorToken, upload.single("image"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  const url = `/uploads/${req.file.filename}`;
-  res.json({ success: true, url });
 });
 
 // ── Public API Routes ─────────────────────────────────────────────────────────
