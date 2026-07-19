@@ -99,11 +99,44 @@ process.on("unhandledRejection", (reason, promise) => {
   console.warn("Caught Unhandled Rejection in background task:", reason);
 });
 
+// Setup paths for local file-based storage fallback
+const isVercel = !!process.env.VERCEL;
+const dataDir = isVercel ? "/tmp/data" : path.join(process.cwd(), "data");
+try { if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true }); } catch (_) {}
+
+const ARTICLES_FILE = path.join(dataDir, "articles.json");
+const SUBSCRIBERS_FILE = path.join(dataDir, "subscribers.json");
+const USERS_FILE = path.join(dataDir, "users.json");
+const SUBMISSIONS_FILE = path.join(dataDir, "submissions.json");
+
+// Helper to load array from disk
+function loadJsonArray<T>(filePath: string, fallback: T[]): T[] {
+  try {
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, "utf-8");
+      return JSON.parse(content);
+    }
+  } catch (error) {
+    console.error(`Error loading JSON from ${filePath}:`, error);
+  }
+  return fallback;
+}
+
+// Helper to save array to disk
+function saveJsonArray<T>(filePath: string, data: T[]): void {
+  try {
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2), "utf-8");
+  } catch (error) {
+    console.error(`Error saving JSON to ${filePath}:`, error);
+  }
+}
+
 try {
   const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+  const hasCredentials = !!(serviceAccountVar || process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
-  if (serviceAccountVar || projectId) {
+  if (hasCredentials) {
     if (!getApps().length) {
       if (serviceAccountVar) {
         try {
@@ -124,19 +157,15 @@ try {
     }
     db = getFirestore();
   } else {
-    console.log("No Firebase projectId or service account key provided in env. Initializing with fallback default projectId.");
-    if (!getApps().length) {
-      initializeApp({ projectId: "startup-afrika" });
-    }
-    db = getFirestore();
+    console.log("No explicit Firebase service account key or application credentials provided in env. Firestore is disabled; falling back to local file persistence.");
+    db = null;
   }
 } catch (error) {
   console.error("Firebase Admin initialization error, disabling Firestore database:", error);
   db = null;
 }
 
-// Perform a silent asynchronous validation of Firestore connection.
-// If it fails (due to lack of credentials or project missing), we disable `db` to fallback to local storage.
+// Perform a silent asynchronous validation of Firestore connection if db exists.
 if (db) {
   db.collection("_health")
     .limit(1)
@@ -145,7 +174,7 @@ if (db) {
       console.log("Firebase Firestore connection verified successfully.");
     })
     .catch((err) => {
-      console.warn("Firebase Firestore is unreachable or credentials are missing. Disabling Firestore to fallback to in-memory storage. Error:", err instanceof Error ? err.message : String(err));
+      console.warn("Firebase Firestore is unreachable or credentials are missing. Disabling Firestore to fallback to local file storage. Error:", err instanceof Error ? err.message : String(err));
       db = null;
     });
 }
@@ -165,7 +194,6 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
 // Multer configuration — use /tmp in production (Vercel read-only FS), public/uploads locally
-const isVercel = !!process.env.VERCEL;
 const uploadDir = isVercel ? "/tmp/uploads" : path.join(process.cwd(), "public", "uploads");
 try { if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true }); } catch (_) {}
 const storage = multer.diskStorage({
@@ -200,7 +228,7 @@ interface Article {
   createdAt: string;
   updatedAt: string;
 }
-const articles: Article[] = [];
+const articles: Article[] = loadJsonArray(ARTICLES_FILE, []);
 
 function requireEditorToken(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = req.headers["x-editor-token"] as string;
@@ -212,9 +240,9 @@ function requireEditorToken(req: express.Request, res: express.Response, next: e
   next();
 }
 
-// Fallback in-memory arrays when Firestore is unavailable/disabled
-const subscribers: Array<{ email: string; date: string; source?: string }> = [];
-const users: Array<{ uid: string; email: string; name: string; picture: string; lastLogin: string; isDemo?: boolean }> = [];
+// Fallback arrays when Firestore is unavailable/disabled, loaded from disk
+const subscribers: Array<{ email: string; date: string; source?: string }> = loadJsonArray(SUBSCRIBERS_FILE, []);
+const users: Array<{ uid: string; email: string; name: string; picture: string; lastLogin: string; isDemo?: boolean }> = loadJsonArray(USERS_FILE, []);
 
 const submissions: Array<{
   id: string;
@@ -230,7 +258,7 @@ const submissions: Array<{
     lesson: string;
   };
   date: string;
-}> = [];
+}> = loadJsonArray(SUBMISSIONS_FILE, []);
 
 // Initialize Gemini Client
 const ai = process.env.GEMINI_API_KEY
@@ -341,6 +369,7 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
       if (oldStatus === "draft" && status === "published") {
         sendPublishEmail(title, subtitle);
       }
+      saveJsonArray(ARTICLES_FILE, articles);
       return res.json({ success: true, article: articles[idx] });
     }
   }
@@ -363,6 +392,7 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
     updatedAt: new Date().toISOString(),
   };
   articles.push(newArticle);
+  saveJsonArray(ARTICLES_FILE, articles);
 
   if (status === "published") {
     sendPublishEmail(title, subtitle);
@@ -412,7 +442,10 @@ app.delete("/api/editor/articles/:id", requireEditorToken, async (req, res) => {
     }
   }
   const idx = articles.findIndex((a) => a.id === id);
-  if (idx !== -1) articles.splice(idx, 1);
+  if (idx !== -1) {
+    articles.splice(idx, 1);
+    saveJsonArray(ARTICLES_FILE, articles);
+  }
   res.json({ success: true });
 });
 
@@ -466,6 +499,7 @@ app.post("/api/subscribers", async (req, res) => {
     }
     const newSub = { email: normalizedEmail, date: new Date().toISOString() };
     subscribers.push(newSub);
+    saveJsonArray(SUBSCRIBERS_FILE, subscribers);
     return res.json({ success: true, subscriber: newSub });
   }
 
@@ -486,6 +520,7 @@ app.post("/api/subscribers", async (req, res) => {
     }
     const newSub = { email: normalizedEmail, date: new Date().toISOString() };
     subscribers.push(newSub);
+    saveJsonArray(SUBSCRIBERS_FILE, subscribers);
     res.json({ success: true, subscriber: newSub });
   }
 });
@@ -519,6 +554,8 @@ app.post("/api/users/demo-login", async (req, res) => {
         source: 'demo_signup'
       });
     }
+    saveJsonArray(USERS_FILE, users);
+    saveJsonArray(SUBSCRIBERS_FILE, subscribers);
     return res.json({
       success: true,
       user: {
@@ -573,6 +610,7 @@ app.post("/api/users/demo-login", async (req, res) => {
     const exists = users.some(u => u.uid === normalizedEmail);
     if (!exists) {
       users.push(user);
+      saveJsonArray(USERS_FILE, users);
     }
     return res.json({
       success: true,
@@ -611,6 +649,8 @@ app.post("/api/users/sync", async (req, res) => {
           subscribers.push({ email: decodedToken.email.toLowerCase(), date: new Date().toISOString(), source: 'signup' });
         }
       }
+      saveJsonArray(USERS_FILE, users);
+      saveJsonArray(SUBSCRIBERS_FILE, subscribers);
       return res.json({ success: true });
     }
 
@@ -657,6 +697,7 @@ app.post("/api/submissions", (req, res) => {
     date: new Date().toISOString(),
   };
   submissions.push(newSubmission);
+  saveJsonArray(SUBMISSIONS_FILE, submissions);
   res.json({ success: true, submission: newSubmission });
 });
 
