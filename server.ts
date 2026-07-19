@@ -252,7 +252,7 @@ interface Article {
 
 const DEFAULT_ARTICLES: Article[] = [];
 
-const loadedArticles = loadJsonArray(ARTICLES_FILE, []).filter(a => !a.id.startsWith("seed_"));
+const loadedArticles = loadJsonArray<Article>(ARTICLES_FILE, []).filter(a => !a.id.startsWith("seed_"));
 if (loadedArticles.length === 0) {
   saveJsonArray(ARTICLES_FILE, DEFAULT_ARTICLES);
 }
@@ -378,7 +378,7 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
       await docRef.set(savedArticle, { merge: true });
 
       let emailResult = null;
-      if (status === "published" && (oldStatus === "draft" || !docSnap.exists)) {
+      if (status === "published") {
         emailResult = await sendPublishEmail(savedArticle.title, savedArticle.subtitle);
       }
 
@@ -396,7 +396,7 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
       articles[idx] = { ...articles[idx], title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, coverHeight, coverPosition, body, status, wordCount, updatedAt: new Date().toISOString() };
       
       let emailResult = null;
-      if (oldStatus === "draft" && status === "published") {
+      if (status === "published") {
         emailResult = await sendPublishEmail(title, subtitle);
       }
       saveJsonArray(ARTICLES_FILE, articles);

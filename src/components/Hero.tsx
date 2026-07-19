@@ -5,11 +5,13 @@ import { User } from "firebase/auth";
 export default function Hero({ 
   user,
   featuredArticle,
-  onSelect
+  onSelect,
+  articlesLoading
 }: { 
   user?: User | null;
   featuredArticle?: any;
   onSelect?: () => void;
+  articlesLoading?: boolean;
 }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -71,15 +73,25 @@ export default function Hero({
               
               {/* Massive Bold Title */}
               <h2 className="text-4xl sm:text-5xl md:text-[44px] font-extrabold tracking-tight leading-[1.08] text-white mb-6 group-hover:text-emerald-300 transition-colors">
-                {featuredArticle ? featuredArticle.title : "Welcome to Slyzah"}
+                {articlesLoading ? (
+                  <span className="inline-block bg-white/10 rounded-lg w-3/4 h-10 animate-pulse">&nbsp;</span>
+                ) : featuredArticle ? (
+                  featuredArticle.title
+                ) : (
+                  "No featured article yet"
+                )}
               </h2>
             </div>
             
             {/* Meta Info */}
             <p className="text-sm font-semibold text-stone-300 uppercase tracking-wider">
-              {featuredArticle 
-                ? `${featuredArticle.founderName || "Founder"} – ${new Date(featuredArticle.updatedAt || featuredArticle.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
-                : "No curation has been featured yet."}
+              {articlesLoading ? (
+                <span className="inline-block bg-white/10 rounded-lg w-1/2 h-4 animate-pulse">&nbsp;</span>
+              ) : featuredArticle ? (
+                `${featuredArticle.founderName || "Founder"} – ${new Date(featuredArticle.updatedAt || featuredArticle.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
+              ) : (
+                "Publish your first article to feature it here"
+              )}
             </p>
           </div>
 

@@ -168,6 +168,7 @@ export default function App() {
               user={user} 
               featuredArticle={publishedArticles[0]}
               onSelect={() => publishedArticles[0] && setSelectedInterviewId(publishedArticles[0].id)}
+              articlesLoading={loadingArticles}
             />
 
             {/* Main grid feed */}
