@@ -108,6 +108,7 @@ const ARTICLES_FILE = path.join(dataDir, "articles.json");
 const SUBSCRIBERS_FILE = path.join(dataDir, "subscribers.json");
 const USERS_FILE = path.join(dataDir, "users.json");
 const SUBMISSIONS_FILE = path.join(dataDir, "submissions.json");
+const EMAIL_LOGS_FILE = path.join(dataDir, "email_logs.json");
 
 // Helper to load array from disk
 function loadJsonArray<T>(filePath: string, fallback: T[]): T[] {
@@ -136,7 +137,7 @@ try {
   const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
   const hasCredentials = !!(serviceAccountVar || process.env.GOOGLE_APPLICATION_CREDENTIALS);
 
-  if (hasCredentials) {
+  if (hasCredentials || projectId) {
     if (!getApps().length) {
       if (serviceAccountVar) {
         try {
@@ -153,11 +154,14 @@ try {
       } else if (projectId) {
         initializeApp({ projectId });
         console.log(`Firebase Admin initialized with explicit projectId: ${projectId}`);
+      } else {
+        initializeApp();
+        console.log("Firebase Admin initialized via default ambient credentials.");
       }
     }
     db = getFirestore();
   } else {
-    console.log("No explicit Firebase service account key or application credentials provided in env. Firestore is disabled; falling back to local file persistence.");
+    console.log("No explicit Firebase credentials or Project ID provided. Firestore is disabled; falling back to local file persistence.");
     db = null;
   }
 } catch (error) {
@@ -228,7 +232,14 @@ interface Article {
   createdAt: string;
   updatedAt: string;
 }
-const articles: Article[] = loadJsonArray(ARTICLES_FILE, []);
+
+const DEFAULT_ARTICLES: Article[] = [];
+
+const loadedArticles = loadJsonArray(ARTICLES_FILE, []).filter(a => !a.id.startsWith("seed_"));
+if (loadedArticles.length === 0) {
+  saveJsonArray(ARTICLES_FILE, DEFAULT_ARTICLES);
+}
+const articles: Article[] = loadedArticles;
 
 function requireEditorToken(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = req.headers["x-editor-token"] as string;
@@ -349,11 +360,12 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
 
       await docRef.set(savedArticle, { merge: true });
 
+      let emailResult = null;
       if (status === "published" && (oldStatus === "draft" || !docSnap.exists)) {
-        sendPublishEmail(savedArticle.title, savedArticle.subtitle);
+        emailResult = await sendPublishEmail(savedArticle.title, savedArticle.subtitle);
       }
 
-      return res.json({ success: true, article: savedArticle });
+      return res.json({ success: true, article: savedArticle, emailResult });
     } catch (error) {
       console.error("Firestore save article error:", error);
       return res.status(500).json({ success: false, error: "Failed to save article to database", details: error instanceof Error ? error.message : String(error) });
@@ -366,11 +378,12 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
       const oldStatus = articles[idx].status;
       articles[idx] = { ...articles[idx], title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, coverHeight, coverPosition, body, status, wordCount, updatedAt: new Date().toISOString() };
       
+      let emailResult = null;
       if (oldStatus === "draft" && status === "published") {
-        sendPublishEmail(title, subtitle);
+        emailResult = await sendPublishEmail(title, subtitle);
       }
       saveJsonArray(ARTICLES_FILE, articles);
-      return res.json({ success: true, article: articles[idx] });
+      return res.json({ success: true, article: articles[idx], emailResult });
     }
   }
   const newArticle: Article = {
@@ -394,42 +407,96 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
   articles.push(newArticle);
   saveJsonArray(ARTICLES_FILE, articles);
 
+  let emailResult = null;
   if (status === "published") {
-    sendPublishEmail(title, subtitle);
+    emailResult = await sendPublishEmail(title, subtitle);
   }
-  res.json({ success: true, article: newArticle });
+  res.json({ success: true, article: newArticle, emailResult });
 });
 
 async function sendPublishEmail(title: string, subtitle: string) {
-  if (!db || !resend) {
-    console.warn("Skipping email announcement: Firebase or Resend is not configured.");
-    return;
-  }
+  let allEmails: string[] = [];
   try {
-    const snapshot = await db.collection("subscribers").get();
-    const emails = snapshot.docs.map(doc => doc.data().email).filter(Boolean);
-    
-    // We send to users collection as well if they aren't in subscribers (or assume they are in subscribers)
-    const usersSnapshot = await db.collection("users").get();
-    const userEmails = usersSnapshot.docs.map(doc => doc.data().email).filter(Boolean);
-    
-    // Combine and deduplicate
-    const allEmails = Array.from(new Set([...emails, ...userEmails]));
-    
-    if (allEmails.length > 0 && process.env.RESEND_API_KEY) {
-      // Resend allows up to 50 recipients per batch in the 'to' or 'bcc' field. For a real app, chunk the array.
-      await resend.emails.send({
-        from: 'Startup Afrika <onboarding@resend.dev>', // Use a verified domain or Resend testing domain
-        to: allEmails.slice(0, 50),
-        subject: `New Article: ${title}`,
-        html: `<p>A new article has been published on Startup Afrika: <strong>${title}</strong></p><p>${subtitle}</p><p><a href="https://startup.afrika">Read it now</a></p>`
-      });
-      console.log(`Announcement email sent to ${Math.min(allEmails.length, 50)} subscribers.`);
+    if (db) {
+      const snapshot = await db.collection("subscribers").get();
+      const emails = snapshot.docs.map(doc => doc.data().email).filter(Boolean);
+      
+      const usersSnapshot = await db.collection("users").get();
+      const userEmails = usersSnapshot.docs.map(doc => doc.data().email).filter(Boolean);
+      
+      allEmails = Array.from(new Set([...emails, ...userEmails]));
+    } else {
+      // Fallback to local files
+      const localSubs = loadJsonArray(SUBSCRIBERS_FILE, [] as { email: string }[]);
+      const localUsers = loadJsonArray(USERS_FILE, [] as { email: string }[]);
+      const emails = localSubs.map(s => s.email).filter(Boolean);
+      const userEmails = localUsers.map(u => u.email).filter(Boolean);
+      allEmails = Array.from(new Set([...emails, ...userEmails]));
     }
+    
+    // Normalize and filter valid emails
+    allEmails = allEmails.map(e => e.trim().toLowerCase()).filter(e => e && e.includes("@"));
+
+    let isSimulated = true;
+    let sent = false;
+
+    if (allEmails.length > 0) {
+      if (resend && process.env.RESEND_API_KEY) {
+        try {
+          await resend.emails.send({
+            from: 'Startup Afrika <onboarding@resend.dev>',
+            to: allEmails.slice(0, 50),
+            subject: `New Article: ${title}`,
+            html: `<p>A new article has been published on Startup Afrika: <strong>${title}</strong></p><p>${subtitle}</p><p><a href="https://startup.afrika">Read it now</a></p>`
+          });
+          isSimulated = false;
+          sent = true;
+          console.log(`Announcement email sent to ${Math.min(allEmails.length, 50)} subscribers.`);
+        } catch (err) {
+          console.error("Resend API failed, falling back to simulation log. Error:", err);
+        }
+      } else {
+        console.log(`[SIMULATION] Announcement email sent to subscribers:`, allEmails);
+        sent = true;
+      }
+      
+      // Save log entry to EMAIL_LOGS_FILE
+      const logs = loadJsonArray(EMAIL_LOGS_FILE, [] as any[]);
+      const newLog = {
+        id: `email_log_${Date.now()}`,
+        title,
+        subtitle,
+        emailsCount: allEmails.length,
+        emails: allEmails,
+        sentAt: new Date().toISOString(),
+        isSimulated
+      };
+      logs.unshift(newLog);
+      saveJsonArray(EMAIL_LOGS_FILE, logs);
+    }
+    
+    return {
+      sent,
+      count: allEmails.length,
+      emails: allEmails,
+      isSimulated
+    };
   } catch (error) {
     console.error("Failed to send announcement emails:", error);
+    return {
+      sent: false,
+      count: 0,
+      emails: [],
+      isSimulated: !resend,
+      error: error instanceof Error ? error.message : String(error)
+    };
   }
 }
+
+app.get("/api/editor/email-logs", requireEditorToken, async (_req, res) => {
+  const logs = loadJsonArray(EMAIL_LOGS_FILE, []);
+  res.json({ success: true, logs });
+});
 
 app.delete("/api/editor/articles/:id", requireEditorToken, async (req, res) => {
   const { id } = req.params;
@@ -450,6 +517,64 @@ app.delete("/api/editor/articles/:id", requireEditorToken, async (req, res) => {
 });
 
 // ── Public API Routes ─────────────────────────────────────────────────────────
+app.post("/api/articles/sync", async (req, res) => {
+  const clientArticles = req.body.articles || [];
+  if (!Array.isArray(clientArticles)) {
+    return res.status(400).json({ error: "Invalid articles payload" });
+  }
+
+  if (db) {
+    try {
+      for (const item of clientArticles) {
+        if (!item.id) continue;
+        const docRef = db.collection("articles").doc(item.id);
+        const docSnap = await docRef.get();
+        if (!docSnap.exists) {
+          await docRef.set(item);
+        } else {
+          const serverData = docSnap.data();
+          const serverUpdated = serverData?.updatedAt ? new Date(serverData.updatedAt).getTime() : 0;
+          const clientUpdated = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+          if (clientUpdated > serverUpdated) {
+            await docRef.set(item, { merge: true });
+          }
+        }
+      }
+      const snapshot = await db.collection("articles").get();
+      const dbArticles: Article[] = [];
+      snapshot.forEach((doc) => {
+        dbArticles.push({ id: doc.id, ...doc.data() } as Article);
+      });
+      return res.json({ success: true, articles: dbArticles });
+    } catch (error) {
+      console.error("Firestore sync articles error:", error);
+    }
+  }
+
+  let hasChanges = false;
+  for (const item of clientArticles) {
+    if (!item.id) continue;
+    const idx = articles.findIndex((a) => a.id === item.id);
+    if (idx === -1) {
+      articles.push(item);
+      hasChanges = true;
+    } else {
+      const serverUpdated = articles[idx].updatedAt ? new Date(articles[idx].updatedAt).getTime() : 0;
+      const clientUpdated = item.updatedAt ? new Date(item.updatedAt).getTime() : 0;
+      if (clientUpdated > serverUpdated) {
+        articles[idx] = item;
+        hasChanges = true;
+      }
+    }
+  }
+
+  if (hasChanges) {
+    saveJsonArray(ARTICLES_FILE, articles);
+  }
+
+  res.json({ success: true, articles });
+});
+
 app.get("/api/articles", async (req, res) => {
   if (db) {
     try {

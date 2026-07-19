@@ -27,9 +27,45 @@ export default function App() {
 
   const fetchPublishedArticles = async () => {
     try {
+      // First, try to sync local custom articles with the server
+      const cachedArticlesStr = localStorage.getItem("slyzah_custom_articles");
+      if (cachedArticlesStr) {
+        try {
+          const cachedArticles = JSON.parse(cachedArticlesStr);
+          if (Array.isArray(cachedArticles) && cachedArticles.length > 0) {
+            await fetch("/api/articles/sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ articles: cachedArticles }),
+            }).catch(console.error);
+          }
+        } catch (e) {
+          console.error("Failed to sync articles:", e);
+        }
+      }
+
       const res = await fetch("/api/articles");
       if (res.ok) {
-        const data = await res.json();
+        let data = await res.json();
+        
+        // Merge with custom articles stored in localStorage to prevent loss on server recycle
+        if (cachedArticlesStr) {
+          try {
+            const cachedArticles = JSON.parse(cachedArticlesStr) as any[];
+            // Filter to only include cached articles that don't already exist in the API response (deduplicate by id)
+            const apiIds = new Set(data.map((a: any) => a.id));
+            const uniqueCached = cachedArticles.filter((a) => a.status === "published" && !apiIds.has(a.id));
+            
+            if (uniqueCached.length > 0) {
+              data = [...uniqueCached, ...data];
+              // Sort by updatedAt or createdAt desc
+              data.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
+            }
+          } catch (e) {
+            console.error("Failed to parse cached articles:", e);
+          }
+        }
+        
         setPublishedArticles(data);
       }
     } catch (err) {

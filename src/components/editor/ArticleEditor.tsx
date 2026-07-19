@@ -19,7 +19,7 @@ interface Article {
   coverHeight?: number;
   coverPosition?: string;
 }
-interface Props { article: Article; token: string; onSave: (a: Article) => Promise<void>; onClose: () => void; key?: any; }
+interface Props { article: Article; token: string; onSave: (a: Article) => Promise<any>; onClose: () => void; key?: any; }
 
 const EDITOR_HEADER = "x-editor-token";
 
@@ -38,6 +38,7 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
   const [saving, setSaving] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [savedAt, setSavedAt] = useState<string | null>(null);
+  const [emailNotice, setEmailNotice] = useState<{ count: number; isSimulated: boolean; emails: string[] } | null>(null);
   const [wordCount, setWordCount] = useState(article.wordCount);
   const [linkUrl, setLinkUrl] = useState("");
   const [showLinkInput, setShowLinkInput] = useState(false);
@@ -169,6 +170,7 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
 
   const handleSave = async () => {
     setSaving(true);
+    setEmailNotice(null);
     try {
       const body = editorRef.current?.innerHTML || "";
       const payload: Article = {
@@ -180,8 +182,11 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
         coverHeight, coverPosition,
         updatedAt: new Date().toISOString(),
       };
-      await onSave(payload);
+      const resData = await onSave(payload);
       setSavedAt(new Date().toLocaleTimeString());
+      if (resData && resData.emailResult && resData.emailResult.count > 0) {
+        setEmailNotice(resData.emailResult);
+      }
     } catch (error: any) {
       console.error("Save failed:", error);
       alert(error.message || "Failed to save article draft.");
@@ -380,43 +385,67 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        {previewMode ? (
-          /* ── Preview Mode ── */
-          <div className="max-w-3xl mx-auto px-8 py-12">
-            {coverImage && (
-              <img 
-                src={coverImage} 
-                alt="Cover" 
-                className="w-full rounded-2xl mb-8 object-cover" 
-                style={{ 
-                  height: `${coverHeight}px`, 
-                  objectPosition: coverPosition 
-                }} 
-              />
-            )}
-            <div className="flex flex-wrap gap-2 mb-4">
-              {tags.map((t) => <span key={t} className="text-xs bg-emerald-900/40 text-emerald-300 px-3 py-1 rounded-full">{t}</span>)}
-            </div>
-            <h1 className="text-4xl font-extrabold text-white leading-tight mb-3">{title || "Untitled Article"}</h1>
-            {subtitle && <p className="text-xl text-white/50 mb-6 leading-relaxed">{subtitle}</p>}
-            <div className="flex items-center gap-3 py-4 border-y border-white/8 mb-8">
-              <div className="w-10 h-10 rounded-full bg-emerald-700/40 flex items-center justify-center text-emerald-300 font-bold text-sm">
-                {founderName?.charAt(0) || "?"}
-              </div>
+        {emailNotice && (
+          <div className="bg-emerald-950/80 border-b border-emerald-500/30 px-5 py-3 flex items-center justify-between text-sm text-emerald-300 animate-fade-in" id="email-notification-banner">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">📧</span>
               <div>
-                <p className="text-white/80 text-sm font-semibold">{founderName || "Founder Name"}</p>
-                <p className="text-white/30 text-xs">{startupName}{location ? ` · ${location}` : ""}{foundedYear ? ` · ${foundedYear}` : ""}</p>
+                <p className="font-semibold text-emerald-200">
+                  Notification emails dispatched automatically to {emailNotice.count} subscribed user{emailNotice.count === 1 ? "" : "s"}!
+                </p>
+                <p className="text-xs text-emerald-400/80 mt-0.5">
+                  {emailNotice.isSimulated 
+                    ? `[Simulated mode] Delivery logged to email_logs.json for: ${emailNotice.emails.join(", ")}`
+                    : `Delivered via Resend to: ${emailNotice.emails.join(", ")}`
+                  }
+                </p>
               </div>
             </div>
-            <div
-              className="prose prose-invert prose-emerald max-w-none text-white/80 leading-relaxed"
-              style={{ lineHeight: "1.85" }}
-              dangerouslySetInnerHTML={{ __html: editorRef.current?.innerHTML || article.body }}
-            />
+            <button 
+              onClick={() => setEmailNotice(null)} 
+              className="text-emerald-400 hover:text-emerald-200 p-1 transition-colors"
+              title="Dismiss notification"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
-        ) : (
-          /* ── Edit Mode ── */
-          <div className="max-w-3xl mx-auto px-8 py-8 space-y-6">
+        )}
+        {/* ── Preview Mode ── */}
+        <div className={`max-w-3xl mx-auto px-8 py-12 ${previewMode ? "block" : "hidden"}`}>
+          {coverImage && (
+            <img 
+              src={coverImage} 
+              alt="Cover" 
+              className="w-full rounded-2xl mb-8 object-cover" 
+              style={{ 
+                height: `${coverHeight}px`, 
+                objectPosition: coverPosition 
+              }} 
+            />
+          )}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {tags.map((t) => <span key={t} className="text-xs bg-emerald-900/40 text-emerald-300 px-3 py-1 rounded-full">{t}</span>)}
+          </div>
+          <h1 className="text-4xl font-extrabold text-white leading-tight mb-3">{title || "Untitled Article"}</h1>
+          {subtitle && <p className="text-xl text-white/50 mb-6 leading-relaxed">{subtitle}</p>}
+          <div className="flex items-center gap-3 py-4 border-y border-white/8 mb-8">
+            <div className="w-10 h-10 rounded-full bg-emerald-700/40 flex items-center justify-center text-emerald-300 font-bold text-sm">
+              {founderName?.charAt(0) || "?"}
+            </div>
+            <div>
+              <p className="text-white/80 text-sm font-semibold">{founderName || "Founder Name"}</p>
+              <p className="text-white/30 text-xs">{startupName}{location ? ` · ${location}` : ""}{foundedYear ? ` · ${foundedYear}` : ""}</p>
+            </div>
+          </div>
+          <div
+            className="prose prose-invert prose-emerald max-w-none text-white/80 leading-relaxed"
+            style={{ lineHeight: "1.85" }}
+            dangerouslySetInnerHTML={{ __html: editorRef.current?.innerHTML || article.body }}
+          />
+        </div>
+
+        {/* ── Edit Mode ── */}
+        <div className={`max-w-3xl mx-auto px-8 py-8 space-y-6 ${previewMode ? "hidden" : "block"}`}>
             {/* Cover Image */}
             <div>
               {coverImage ? (
@@ -689,7 +718,6 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
               }}
             />
           </div>
-        )}
       </div>
 
       <style>{`

@@ -37,9 +37,42 @@ export default function EditorDashboard({ token, onLogout }: Props) {
   const fetchArticles = async () => {
     setLoading(true);
     try {
+      // Sync local storage articles with backend first
+      const cachedArticlesStr = localStorage.getItem("slyzah_custom_articles");
+      if (cachedArticlesStr) {
+        try {
+          const cachedArticles = JSON.parse(cachedArticlesStr);
+          if (Array.isArray(cachedArticles) && cachedArticles.length > 0) {
+            await fetch("/api/articles/sync", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ articles: cachedArticles }),
+            }).catch(console.error);
+          }
+        } catch (e) {
+          console.error("Failed to sync articles:", e);
+        }
+      }
+
       const res = await fetch("/api/editor/articles", { headers });
       if (res.ok) {
-        setArticles(await res.json());
+        let fetchedArticles: Article[] = await res.json();
+        
+        // Merge with local drafts/published to make sure everything is visible even if server recycled
+        if (cachedArticlesStr) {
+          try {
+            const cachedArticles = JSON.parse(cachedArticlesStr) as Article[];
+            const apiIds = new Set(fetchedArticles.map((a) => a.id));
+            const uniqueCached = cachedArticles.filter((a) => !apiIds.has(a.id));
+            if (uniqueCached.length > 0) {
+              fetchedArticles = [...uniqueCached, ...fetchedArticles];
+              fetchedArticles.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+            }
+          } catch (e) {
+            console.error(e);
+          }
+        }
+        setArticles(fetchedArticles);
       } else if (res.status === 401) {
         // Token is invalid or expired
         onLogout();
@@ -73,8 +106,21 @@ export default function EditorDashboard({ token, onLogout }: Props) {
     }
     const data = await res.json();
     if (data.success) {
+      const savedArticle = data.article;
+      if (savedArticle) {
+        try {
+          const cachedStr = localStorage.getItem("slyzah_custom_articles");
+          let cached: any[] = cachedStr ? JSON.parse(cachedStr) : [];
+          cached = cached.filter((a) => a.id !== savedArticle.id);
+          cached.unshift(savedArticle);
+          localStorage.setItem("slyzah_custom_articles", JSON.stringify(cached));
+        } catch (e) {
+          console.error("Error caching custom article locally:", e);
+        }
+      }
       await fetchArticles();
-      setActiveArticle(data.article);
+      setActiveArticle(savedArticle);
+      return data;
     } else {
       throw new Error(data.error || "Failed to save article");
     }
@@ -83,6 +129,18 @@ export default function EditorDashboard({ token, onLogout }: Props) {
   const handleDelete = async (id: string) => {
     if (!id || !confirm("Delete this article?")) return;
     await fetch(`/api/editor/articles/${id}`, { method: "DELETE", headers });
+    
+    try {
+      const cachedStr = localStorage.getItem("slyzah_custom_articles");
+      if (cachedStr) {
+        let cached: any[] = JSON.parse(cachedStr);
+        cached = cached.filter((a) => a.id !== id);
+        localStorage.setItem("slyzah_custom_articles", JSON.stringify(cached));
+      }
+    } catch (e) {
+      console.error("Error removing deleted article from cache:", e);
+    }
+
     if (activeArticle?.id === id) setActiveArticle(null);
     await fetchArticles();
   };
