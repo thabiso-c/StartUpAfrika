@@ -36,7 +36,12 @@ export default function EditorDashboard({ token, onLogout }: Props) {
     setLoading(true);
     try {
       const res = await fetch("/api/editor/articles", { headers });
-      if (res.ok) setArticles(await res.json());
+      if (res.ok) {
+        setArticles(await res.json());
+      } else if (res.status === 401) {
+        // Token is invalid or expired
+        onLogout();
+      }
     } finally {
       setLoading(false);
     }
