@@ -112,169 +112,217 @@ export default function InterviewDetail({ interview, onBack }: InterviewDetailPr
             {/* Founder Profile Card */}
             <div className="flex items-center gap-4 p-4 rounded-2xl bg-gray-50 border border-gray-100 mb-8">
               <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-lg">
-                {interview.founderName[0]}
+                {interview.founderName ? interview.founderName[0] : "?"}
               </div>
               <div>
                 <p className="text-base font-bold text-gray-900">{interview.founderName}</p>
                 <p className="text-xs font-mono text-gray-500">
-                  {interview.founderRole} @ {interview.startupName} • Founded in {interview.foundedYear}
+                  {interview.founderRole || "Founder"} @ {interview.startupName} {interview.foundedYear ? `• Founded in ${interview.foundedYear}` : ""}
                 </p>
               </div>
             </div>
           </div>
 
           {/* Quick Stats Grid */}
-          <div className="grid grid-cols-3 gap-4 p-5 bg-emerald-50/20 border border-emerald-100/30 rounded-2xl mb-12">
-            {interview.stats.map((st) => (
-              <div key={st.label} className="text-center sm:text-left">
-                <p className="text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-1">{st.label}</p>
-                <p className="text-base sm:text-lg font-mono font-extrabold text-emerald-800">{st.value}</p>
-              </div>
-            ))}
+          {interview.stats && interview.stats.length > 0 && (
+            <div className="grid grid-cols-3 gap-4 p-5 bg-emerald-50/20 border border-emerald-100/30 rounded-2xl mb-12">
+              {interview.stats.map((st) => (
+                <div key={st.label} className="text-center sm:text-left">
+                  <p className="text-[10px] font-mono text-gray-400 uppercase tracking-wider mb-1">{st.label}</p>
+                  <p className="text-base sm:text-lg font-mono font-extrabold text-emerald-800">{st.value}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Rich body content or 6 Questions Deep Dive Section */}
+          {interview.body ? (
+            <div className="prose prose-emerald max-w-none text-gray-700 leading-relaxed space-y-6" id="article-custom-body">
+              <style>{`
+                .rich-content h3 {
+                  font-size: 1.5rem;
+                  font-weight: 800;
+                  color: #111827;
+                  margin-top: 2rem;
+                  margin-bottom: 0.75rem;
+                  font-family: 'Space Grotesk', 'Inter', sans-serif;
+                }
+                .rich-content p {
+                  font-size: 1.05rem;
+                  line-height: 1.75;
+                  color: #374151;
+                  margin-bottom: 1.25rem;
+                }
+                .rich-content img {
+                  border-radius: 12px;
+                  max-width: 100%;
+                  margin: 1.5rem 0;
+                  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.04);
+                }
+                .rich-content strong {
+                  font-weight: 700;
+                  color: #111827;
+                }
+              `}</style>
+              <div dangerouslySetInnerHTML={{ __html: interview.body }} className="rich-content" />
+            </div>
+          ) : (
+            <div className="space-y-12" id="answers-container">
+              {/* Q1: Spark */}
+              {interview.answers?.spark && (
+                <section className="scroll-mt-20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
+                      <Zap className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900 font-sans">
+                      The Spark: What inspired you to start?
+                    </h4>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1">
+                    {interview.answers.spark}
+                  </p>
+                </section>
+              )}
+
+              {/* Q2: MVP */}
+              {interview.answers?.mvp && (
+                <section className="scroll-mt-20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
+                      <Hammer className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900 font-sans">
+                      The MVP: What did the first version look like?
+                    </h4>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1">
+                    {interview.answers.mvp}
+                  </p>
+                </section>
+              )}
+
+              {/* Q3: Tech Stack */}
+              {interview.answers?.techStackDetails && (
+                <section className="scroll-mt-20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
+                      <Code2 className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900 font-sans">
+                      The Tech Stack: How is it built?
+                    </h4>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1 mb-4">
+                    {interview.answers.techStackDetails}
+                  </p>
+                </section>
+              )}
+
+              {/* Q4: Traction */}
+              {interview.answers?.traction && (
+                <section className="scroll-mt-20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
+                      <TrendingUp className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900 font-sans">
+                      Gaining Traction: Acquiring the first 100 paying users?
+                    </h4>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1">
+                    {interview.answers.traction}
+                  </p>
+                </section>
+              )}
+
+              {/* Q5: Revenue */}
+              {interview.answers?.revenue && (
+                <section className="scroll-mt-20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
+                      <DollarSign className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900 font-sans">
+                      The Revenue: What is the business model?
+                    </h4>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1">
+                    {interview.answers.revenue}
+                  </p>
+                </section>
+              )}
+
+              {/* Q6: Lesson */}
+              {interview.answers?.lesson && (
+                <section className="scroll-mt-20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-lg font-bold text-gray-900 font-sans text-rose-800">
+                      The Lesson: One mistake other African developers should avoid?
+                    </h4>
+                  </div>
+                  <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1 border-l-2 border-rose-200 bg-rose-50/10 p-3 rounded-r-xl">
+                    {interview.answers.lesson}
+                  </p>
+                </section>
+              )}
+            </div>
+          )}
           </div>
-
-          {/* 6 Questions Deep Dive Section */}
-          <div className="space-y-12" id="answers-container">
-            {/* Q1: Spark */}
-            <section className="scroll-mt-20">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
-                  <Zap className="w-5 h-5" />
-                </div>
-                <h4 className="text-lg font-bold text-gray-900 font-sans">
-                  The Spark: What inspired you to start?
-                </h4>
-              </div>
-              <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1">
-                {interview.answers.spark}
-              </p>
-            </section>
-
-            {/* Q2: MVP */}
-            <section className="scroll-mt-20">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
-                  <Hammer className="w-5 h-5" />
-                </div>
-                <h4 className="text-lg font-bold text-gray-900 font-sans">
-                  The MVP: What did the first version look like?
-                </h4>
-              </div>
-              <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1">
-                {interview.answers.mvp}
-              </p>
-            </section>
-
-            {/* Q3: Tech Stack */}
-            <section className="scroll-mt-20">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
-                  <Code2 className="w-5 h-5" />
-                </div>
-                <h4 className="text-lg font-bold text-gray-900 font-sans">
-                  The Tech Stack: How is it built?
-                </h4>
-              </div>
-              <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1 mb-4">
-                {interview.answers.techStackDetails}
-              </p>
-            </section>
-
-            {/* Q4: Traction */}
-            <section className="scroll-mt-20">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
-                  <TrendingUp className="w-5 h-5" />
-                </div>
-                <h4 className="text-lg font-bold text-gray-900 font-sans">
-                  Gaining Traction: Acquiring the first 100 paying users?
-                </h4>
-              </div>
-              <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1">
-                {interview.answers.traction}
-              </p>
-            </section>
-
-            {/* Q5: Revenue */}
-            <section className="scroll-mt-20">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
-                  <DollarSign className="w-5 h-5" />
-                </div>
-                <h4 className="text-lg font-bold text-gray-900 font-sans">
-                  The Revenue: What is the business model?
-                </h4>
-              </div>
-              <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1">
-                {interview.answers.revenue}
-              </p>
-            </section>
-
-            {/* Q6: Lesson */}
-            <section className="scroll-mt-20">
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`p-2 rounded-lg ${scheme.bg} ${scheme.text}`}>
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <h4 className="text-lg font-bold text-gray-900 font-sans text-rose-800">
-                  The Lesson: One mistake other African developers should avoid?
-                </h4>
-              </div>
-              <p className="text-gray-600 leading-relaxed text-sm sm:text-base pl-1 p-1 border-l-2 border-rose-200 bg-rose-50/10 p-3 rounded-r-xl">
-                {interview.answers.lesson}
-              </p>
-            </section>
-          </div>
-        </div>
 
         {/* Right 4 Columns: Specs & Tech Sidebar */}
         <div className="lg:col-span-4 space-y-6">
           {/* Architecture Box */}
-          <div className="border border-gray-150 rounded-2xl p-6 bg-white shadow-sm">
-            <h3 className="font-sans font-bold text-gray-900 text-sm tracking-tight mb-4 flex items-center gap-2">
-              <Cpu className="w-4 h-4 text-emerald-600" />
-              Technical Blueprint
-            </h3>
+          {interview.techStack && interview.techStack.length > 0 && (
+            <div className="border border-gray-150 rounded-2xl p-6 bg-white shadow-sm">
+              <h3 className="font-sans font-bold text-gray-900 text-sm tracking-tight mb-4 flex items-center gap-2">
+                <Cpu className="w-4 h-4 text-emerald-600" />
+                Technical Blueprint
+              </h3>
 
-            {/* Tech Stack Pills list */}
-            <div className="flex flex-wrap gap-1.5 mb-6">
-              {interview.techStack.map((tech) => (
-                <span
-                  key={tech}
-                  className="text-xs font-mono bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-100/50"
-                >
-                  {tech}
-                </span>
-              ))}
-            </div>
-
-            {/* Custom styled architecture visualizer block */}
-            <div className="bg-gray-950 rounded-xl p-4 font-mono text-[10px] text-emerald-400 overflow-x-auto leading-relaxed border border-gray-800">
-              <p className="text-gray-500 mb-2">// Flow Diagram</p>
-              <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span>Client React App</span>
-                  <span className="text-gray-600">&rarr;</span>
-                  <span className="text-amber-300">Vite CDN</span>
-                </div>
-                <div className="text-center text-gray-600 py-1">| (REST/WebSockets)</div>
-                <div className="flex items-center justify-between">
-                  <span>Express API Node</span>
-                  <span className="text-gray-600">&rarr;</span>
-                  <span className="text-teal-300">Secure Escrow</span>
-                </div>
-                <div className="text-center text-gray-600 py-1">| (ORM Query)</div>
-                <div className="flex items-center justify-between">
-                  <span>Primary DB Cluster</span>
-                  <span className="text-gray-600">&rarr;</span>
-                  <span className="text-emerald-300">PCI Pay Gateway</span>
-                </div>
+              {/* Tech Stack Pills list */}
+              <div className="flex flex-wrap gap-1.5 mb-6">
+                {interview.techStack.map((tech) => (
+                  <span
+                    key={tech}
+                    className="text-xs font-mono bg-emerald-50 text-emerald-800 px-2.5 py-1 rounded-lg border border-emerald-100/50"
+                  >
+                    {tech}
+                  </span>
+                ))}
               </div>
-              <p className="text-[9px] text-gray-500 mt-3 pt-2 border-t border-gray-800">
-                Host: Cloud Run Docker VPS
-              </p>
+
+              {/* Custom styled architecture visualizer block */}
+              <div className="bg-gray-950 rounded-xl p-4 font-mono text-[10px] text-emerald-400 overflow-x-auto leading-relaxed border border-gray-800">
+                <p className="text-gray-500 mb-2">// Flow Diagram</p>
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span>Client React App</span>
+                    <span className="text-gray-600">&rarr;</span>
+                    <span className="text-amber-300">Vite CDN</span>
+                  </div>
+                  <div className="text-center text-gray-600 py-1">| (REST/WebSockets)</div>
+                  <div className="flex items-center justify-between">
+                    <span>Express API Node</span>
+                    <span className="text-gray-600">&rarr;</span>
+                    <span className="text-teal-300">Secure Escrow</span>
+                  </div>
+                  <div className="text-center text-gray-600 py-1">| (ORM Query)</div>
+                  <div className="flex items-center justify-between">
+                    <span>Primary DB Cluster</span>
+                    <span className="text-gray-600">&rarr;</span>
+                    <span className="text-emerald-300">PCI Pay Gateway</span>
+                  </div>
+                </div>
+                <p className="text-[9px] text-gray-500 mt-3 pt-2 border-t border-gray-800">
+                  Host: Cloud Run Docker VPS
+                </p>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Quick host quote note */}
           <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-6 text-center">

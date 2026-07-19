@@ -9,18 +9,27 @@ interface InterviewCardProps {
 
 export default function InterviewCard({ interview, onSelect }: InterviewCardProps) {
   // Use the generated female and male images to mimic the exact layout of the screenshot
-  const leftAvatarUrl = "/src/assets/images/female_founder_green_1784393420701.jpg";
+  const leftAvatarUrl = interview.coverImage || "/src/assets/images/female_founder_green_1784393420701.jpg";
   const rightAvatarUrl = "/src/assets/images/male_founder_yellow_1784393438114.jpg";
 
   // Format title to match high-end styled look
-  const displayTitle = interview.id === "slyzah" 
-    ? "HOW WE BUILT SLYZAH: Thabiso's Story" 
-    : `HOW WE BUILT ${interview.startupName.toUpperCase()}: ${interview.founderName}'s Story`;
+  const displayTitle = interview.title || (interview.startupName && interview.founderName
+    ? `HOW WE BUILT ${interview.startupName.toUpperCase()}: ${interview.founderName}'s Story`
+    : "Untitled Article");
 
   // Muted subtitle text matching the screenshot style
-  const displaySubtitle = interview.id === "slyzah"
-    ? "Summarized text posts can be edited for readability like tivity like Subatack.. aftermser cemeliogier commrantor your remdabiMy fllnir..."
-    : `Detailed technical setup, distribution strategy, and unit economics behind ${interview.startupName} for readability like Substack.`;
+  const displaySubtitle = interview.subtitle || (interview.startupName
+    ? `Detailed technical setup, distribution strategy, and unit economics behind ${interview.startupName} for readability like Substack.`
+    : "");
+
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+    } catch {
+      return "3 days ago";
+    }
+  };
+  const displayDate = interview.updatedAt || interview.createdAt ? formatDate(interview.updatedAt || interview.createdAt) : "3 days ago";
 
   return (
     <div
@@ -52,7 +61,7 @@ export default function InterviewCard({ interview, onSelect }: InterviewCardProp
         <div className="flex items-center gap-2 text-xs font-mono font-bold">
           <span className="text-emerald-700">{interview.founderName}</span>
           <span className="text-gray-300">•</span>
-          <span className="text-gray-400">3 days ago</span>
+          <span className="text-gray-400">{displayDate}</span>
         </div>
       </div>
 

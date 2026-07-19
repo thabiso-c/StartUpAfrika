@@ -12,15 +12,21 @@ export interface Interview {
   title: string;
   subtitle: string;
   founderName: string;
-  founderRole: string;
+  founderRole?: string;
   startupName: string;
-  foundedYear: number;
+  foundedYear?: number | string;
   location: string;
-  techStack: string[];
+  techStack?: string[];
   tags: string[];
-  stats: Array<{ label: string; value: string }>;
-  accentColor: string; // Tailwind color class like "emerald", "blue", "indigo", "amber"
-  answers: InterviewAnswers;
+  stats?: Array<{ label: string; value: string }>;
+  accentColor?: string; // Tailwind color class like "emerald", "blue", "indigo", "amber"
+  answers?: InterviewAnswers;
+  body?: string;
+  coverImage?: string;
+  status?: string;
+  wordCount?: number;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface Subscriber {

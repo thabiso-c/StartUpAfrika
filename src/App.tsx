@@ -22,16 +22,50 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<string>("explore");
   const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [publishedArticles, setPublishedArticles] = useState<any[]>([]);
+  const [loadingArticles, setLoadingArticles] = useState<boolean>(true);
+
+  const fetchPublishedArticles = async () => {
+    try {
+      const res = await fetch("/api/articles");
+      if (res.ok) {
+        const data = await res.json();
+        setPublishedArticles(data);
+      }
+    } catch (err) {
+      console.error("Failed to fetch articles:", err);
+    } finally {
+      setLoadingArticles(false);
+    }
+  };
 
   useEffect(() => {
+    // Check if we have a persisted demo user first
+    const savedDemoUser = localStorage.getItem("slyzah_demo_user");
+    if (savedDemoUser) {
+      try {
+        setUser(JSON.parse(savedDemoUser));
+      } catch (e) {
+        localStorage.removeItem("slyzah_demo_user");
+      }
+    }
+
     if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
-      setUser(currentUser);
+      if (currentUser) {
+        setUser(currentUser);
+      } else if (!localStorage.getItem("slyzah_demo_user")) {
+        setUser(null);
+      }
     });
     return () => unsubscribe();
   }, []);
 
-  const selectedInterview = interviews.find((i) => i.id === selectedInterviewId);
+  useEffect(() => {
+    fetchPublishedArticles();
+  }, [currentTab]); // re-fetch when coming back to explore or changing tabs
+
+  const selectedInterview = [...publishedArticles, ...interviews].find((i) => i.id === selectedInterviewId);
 
   // Switch tabs and reset active detail views
   const handleTabChange = (tab: string) => {
@@ -55,7 +89,11 @@ export default function App() {
         return (
           <div className="animate-fade-in" id="explore-view">
             {/* Minimalist Substack Hero block */}
-            <Hero user={user} />
+            <Hero 
+              user={user} 
+              featuredArticle={publishedArticles[0]}
+              onSelect={() => publishedArticles[0] && setSelectedInterviewId(publishedArticles[0].id)}
+            />
 
             {/* Main grid feed */}
             <div className="max-w-6xl mx-auto px-4 py-16">
@@ -68,13 +106,27 @@ export default function App() {
 
               {/* Vertical list feed */}
               <div className="flex flex-col divide-y divide-gray-100" id="interviews-feed">
-                {interviews.map((interview) => (
-                  <InterviewCard
-                    key={interview.id}
-                    interview={interview}
-                    onSelect={() => setSelectedInterviewId(interview.id)}
-                  />
-                ))}
+                {loadingArticles ? (
+                  <div className="text-center py-12 text-gray-400 text-sm">
+                    Loading latest blueprints…
+                  </div>
+                ) : publishedArticles.length > 1 ? (
+                  publishedArticles.slice(1).map((interview) => (
+                    <InterviewCard
+                      key={interview.id}
+                      interview={interview}
+                      onSelect={() => setSelectedInterviewId(interview.id)}
+                    />
+                  ))
+                ) : publishedArticles.length === 1 ? (
+                  <div className="text-center py-12 text-gray-400 text-sm">
+                    All set! There are no other blueprint curations yet.
+                  </div>
+                ) : (
+                  <div className="text-center py-12 text-gray-400 text-sm">
+                    No blueprint curations have been published yet.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -121,6 +173,7 @@ export default function App() {
           setCurrentTab={handleTabChange} 
           onOpenSubscribe={handleOpenSubscribe}
           user={user}
+          setUser={setUser}
         />
 
         {/* Dynamic Inner view */}

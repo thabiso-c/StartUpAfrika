@@ -301,6 +301,12 @@ app.delete("/api/editor/articles/:id", requireEditorToken, (req, res) => {
 });
 
 // ── Public API Routes ─────────────────────────────────────────────────────────
+app.get("/api/articles", (req, res) => {
+  const published = articles
+    .filter((a) => a.status === "published")
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  res.json(published);
+});
 app.get("/api/health", (req, res) => {
   res.json({ status: "ok", geminiConfigured: !!ai });
 });
@@ -334,6 +340,49 @@ app.post("/api/subscribers", async (req, res) => {
     res.json({ success: true, subscriber: newSub });
   } catch (error) {
     res.status(500).json({ error: "Failed to subscribe" });
+  }
+});
+
+// Demo/Developer Bypass Login
+app.post("/api/users/demo-login", async (req, res) => {
+  if (!db) return res.status(503).json({ error: "Database not configured" });
+  const { email, name, picture } = req.body;
+  if (!email || !email.includes("@")) {
+    return res.status(400).json({ error: "Invalid email address" });
+  }
+  try {
+    const userRef = db.collection("users").doc(email.toLowerCase());
+    await userRef.set({
+      email: email.toLowerCase(),
+      name: name || "Developer Demo",
+      picture: picture || "",
+      lastLogin: new Date().toISOString(),
+      isDemo: true
+    }, { merge: true });
+
+    // Auto-subscribe
+    const subRef = db.collection("subscribers").doc(email.toLowerCase());
+    const subSnap = await subRef.get();
+    if (!subSnap.exists) {
+      await subRef.set({
+        email: email.toLowerCase(),
+        date: new Date().toISOString(),
+        source: 'demo_signup'
+      });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        uid: email.toLowerCase(),
+        email: email.toLowerCase(),
+        displayName: name || "Developer Demo",
+        photoURL: picture || ""
+      }
+    });
+  } catch (error) {
+    console.error("Demo login error:", error);
+    res.status(500).json({ error: "Failed to process demo login" });
   }
 });
 

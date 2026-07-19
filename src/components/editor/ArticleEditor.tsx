@@ -91,6 +91,28 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
     exec("formatBlock", tag);
   };
 
+  const applyFontFamily = (family: string) => {
+    document.execCommand("styleWithCSS", false, "true");
+    document.execCommand("fontName", false, family);
+    editorRef.current?.focus();
+    updateWordCount();
+  };
+
+  const applyFontSize = (size: string) => {
+    document.execCommand("styleWithCSS", false, "true");
+    document.execCommand("fontSize", false, "7");
+    const spans = editorRef.current?.querySelectorAll("span");
+    spans?.forEach((span) => {
+      const htmlSpan = span as HTMLElement;
+      const styleSize = htmlSpan.style.fontSize;
+      if (styleSize === "xx-large" || styleSize === "32px" || styleSize === "-webkit-xxx-large") {
+        htmlSpan.style.fontSize = size;
+      }
+    });
+    editorRef.current?.focus();
+    updateWordCount();
+  };
+
   const insertLink = () => {
     if (!linkUrl) return;
     exec("createLink", linkUrl);
@@ -523,17 +545,59 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
             {/* Formatting Toolbar */}
             <div className="sticky top-0 z-10 bg-[#0e1310] border border-white/8 rounded-xl px-3 py-2 flex flex-wrap items-center gap-1">
               {/* Headings */}
-              <select
-                onChange={(e) => { handleHeading(e.target.value); e.target.value = ""; }}
-                defaultValue=""
-                className="appearance-none bg-white/5 border border-white/10 text-white/50 text-xs px-2 py-1 rounded mr-1 focus:outline-none cursor-pointer"
-              >
-                <option value="" disabled>Heading</option>
-                <option value="h1">H1</option>
-                <option value="h2">H2</option>
-                <option value="h3">H3</option>
-                <option value="p">Normal</option>
-              </select>
+              <div className="relative flex items-center">
+                <select
+                  onChange={(e) => { handleHeading(e.target.value); e.target.value = ""; }}
+                  defaultValue=""
+                  className="appearance-none bg-white/5 border border-white/10 text-white/50 text-xs pl-2.5 pr-6 py-1 rounded-md focus:outline-none cursor-pointer hover:bg-white/10 hover:text-white transition-all mr-1"
+                >
+                  <option value="" disabled className="bg-[#0e1310] text-white/50">Heading</option>
+                  <option value="h1" className="bg-[#0e1310] text-white">H1</option>
+                  <option value="h2" className="bg-[#0e1310] text-white">H2</option>
+                  <option value="h3" className="bg-[#0e1310] text-white">H3</option>
+                  <option value="p" className="bg-[#0e1310] text-white">Normal</option>
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30 pointer-events-none" />
+              </div>
+
+              {/* Font Family */}
+              <div className="relative flex items-center">
+                <select
+                  onChange={(e) => { applyFontFamily(e.target.value); e.target.value = ""; }}
+                  defaultValue=""
+                  className="appearance-none bg-white/5 border border-white/10 text-white/50 text-xs pl-2.5 pr-6 py-1 rounded-md focus:outline-none cursor-pointer hover:bg-white/10 hover:text-white transition-all mr-1"
+                >
+                  <option value="" disabled className="bg-[#0e1310] text-white/50">Font Family</option>
+                  <option value="'Inter', sans-serif" className="bg-[#0e1310] text-white">Sans (Inter)</option>
+                  <option value="'Playfair Display', serif" className="bg-[#0e1310] text-white">Serif (Playfair)</option>
+                  <option value="'Lora', serif" className="bg-[#0e1310] text-white">Serif (Lora)</option>
+                  <option value="'Space Grotesk', sans-serif" className="bg-[#0e1310] text-white">Modern (Space)</option>
+                  <option value="'Outfit', sans-serif" className="bg-[#0e1310] text-white">Tech (Outfit)</option>
+                  <option value="'JetBrains Mono', monospace" className="bg-[#0e1310] text-white">Mono (JetBrains)</option>
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30 pointer-events-none" />
+              </div>
+
+              {/* Font Size */}
+              <div className="relative flex items-center">
+                <select
+                  onChange={(e) => { applyFontSize(e.target.value); e.target.value = ""; }}
+                  defaultValue=""
+                  className="appearance-none bg-white/5 border border-white/10 text-white/50 text-xs pl-2.5 pr-6 py-1 rounded-md focus:outline-none cursor-pointer hover:bg-white/10 hover:text-white transition-all mr-1"
+                >
+                  <option value="" disabled className="bg-[#0e1310] text-white/50">Font Size</option>
+                  <option value="12px" className="bg-[#0e1310] text-white">12px</option>
+                  <option value="14px" className="bg-[#0e1310] text-white">14px</option>
+                  <option value="16px" className="bg-[#0e1310] text-white font-semibold">16px</option>
+                  <option value="18px" className="bg-[#0e1310] text-white">18px</option>
+                  <option value="20px" className="bg-[#0e1310] text-white font-semibold">20px</option>
+                  <option value="24px" className="bg-[#0e1310] text-white">24px</option>
+                  <option value="30px" className="bg-[#0e1310] text-white">30px</option>
+                  <option value="36px" className="bg-[#0e1310] text-white">36px</option>
+                  <option value="48px" className="bg-[#0e1310] text-white">48px</option>
+                </select>
+                <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-white/30 pointer-events-none" />
+              </div>
 
               <div className="h-4 w-px bg-white/10 mx-1" />
 

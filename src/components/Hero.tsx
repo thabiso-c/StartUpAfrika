@@ -2,7 +2,15 @@ import React, { useState } from "react";
 import { Mail, CheckCircle2, AlertCircle } from "lucide-react";
 import { User } from "firebase/auth";
 
-export default function Hero({ user }: { user?: User | null }) {
+export default function Hero({ 
+  user,
+  featuredArticle,
+  onSelect
+}: { 
+  user?: User | null;
+  featuredArticle?: any;
+  onSelect?: () => void;
+}) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState<{ type: "success" | "error"; message: string } | null>(null);
@@ -49,7 +57,8 @@ export default function Hero({ user }: { user?: User | null }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
         {/* Left Column: Big Featured Card */}
         <div 
-          className="lg:col-span-8 overflow-hidden rounded-[20px] bg-gradient-to-r from-stone-950 via-emerald-950 to-[#0c3121] text-white flex flex-col md:flex-row justify-between min-h-[380px] relative border border-emerald-900/30 shadow-sm"
+          onClick={onSelect}
+          className="lg:col-span-8 overflow-hidden rounded-[20px] bg-gradient-to-r from-stone-950 via-emerald-950 to-[#0c3121] text-white flex flex-col md:flex-row justify-between min-h-[380px] relative border border-emerald-900/30 shadow-sm cursor-pointer hover:border-emerald-500/50 transition-all group"
           id="featured-banner-card"
         >
           {/* Card Left Text Section */}
@@ -61,26 +70,33 @@ export default function Hero({ user }: { user?: User | null }) {
               </span>
               
               {/* Massive Bold Title */}
-              <h2 className="text-3xl sm:text-4xl md:text-[42px] font-extrabold tracking-tight leading-[1.08] text-white mb-4">
-                HOW WE BUILT SLYZAH: <br />
-                Thabiso's Story
+              <h2 className="text-3xl sm:text-4xl md:text-[38px] font-extrabold tracking-tight leading-[1.08] text-white mb-4 group-hover:text-emerald-300 transition-colors">
+                {featuredArticle ? featuredArticle.title : "Welcome to Slyzah"}
               </h2>
             </div>
             
             {/* Meta Info */}
             <p className="text-xs font-semibold text-stone-300 uppercase tracking-wider">
-              Founder – March 2026
+              {featuredArticle 
+                ? `${featuredArticle.founderName || "Founder"} – ${new Date(featuredArticle.updatedAt || featuredArticle.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
+                : "No curation has been featured yet."}
             </p>
           </div>
 
-          {/* Right Section: Smiling Female Founder Portrait */}
+          {/* Right Section */}
           <div className="w-full md:w-[45%] h-[260px] md:h-auto relative overflow-hidden shrink-0">
-            <img 
-              src="/src/assets/images/female_founder_green_1784393420701.jpg" 
-              alt="Thabiso - Slyzah Founder" 
-              className="w-full h-full object-cover md:absolute md:inset-0 select-none"
-              referrerPolicy="no-referrer"
-            />
+            {featuredArticle?.coverImage ? (
+              <img 
+                src={featuredArticle.coverImage} 
+                alt={featuredArticle.founderName || "Featured Article"} 
+                className="w-full h-full object-cover md:absolute md:inset-0 select-none"
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              <div className="w-full h-full bg-emerald-950/40 flex items-center justify-center border-l border-emerald-900/20">
+                <span className="text-stone-400 text-xs font-mono">// Slyzah Digital</span>
+              </div>
+            )}
             {/* Subtle blending gradient from green image to dark background */}
             <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-emerald-950 to-transparent hidden md:block"></div>
           </div>
