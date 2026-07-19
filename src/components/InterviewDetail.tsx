@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { ArrowLeft, MapPin, Calendar, Cpu, Zap, Hammer, Code2, TrendingUp, DollarSign, AlertTriangle, ShieldCheck, Share2 } from "lucide-react";
 import { Interview } from "../types";
 
@@ -8,6 +8,7 @@ interface InterviewDetailProps {
 }
 
 export default function InterviewDetail({ interview, onBack }: InterviewDetailProps) {
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
   // Safe color maps for consistent style
   const colorMap: Record<
     string,
@@ -84,6 +85,50 @@ export default function InterviewDetail({ interview, onBack }: InterviewDetailPr
           Share Blueprint
         </button>
       </div>
+
+      {/* Cover Image Banner */}
+      {interview.coverImage && (
+        <div 
+          onClick={() => setIsLightboxOpen(true)}
+          className="w-full h-[240px] sm:h-[360px] md:h-[420px] rounded-[24px] overflow-hidden mb-10 shadow-sm border border-gray-150/40 relative cursor-zoom-in hover:opacity-95 transition-all group"
+          id="detail-cover-image"
+        >
+          <img 
+            src={interview.coverImage} 
+            alt={interview.title}
+            className="w-full h-full object-cover select-none group-hover:scale-[1.01] transition-transform duration-500"
+            referrerPolicy="no-referrer"
+          />
+          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+            <span className="bg-black/60 text-white text-xs font-semibold px-3 py-1.5 rounded-full backdrop-blur-sm">
+              Click to zoom
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Lightbox Modal overlay on top */}
+      {isLightboxOpen && interview.coverImage && (
+        <div 
+          className="fixed inset-0 bg-stone-950/90 z-50 flex items-center justify-center p-4 cursor-zoom-out animate-fade-in"
+          onClick={() => setIsLightboxOpen(false)}
+        >
+          <div className="relative max-w-5xl max-h-[90vh] overflow-hidden rounded-2xl shadow-2xl">
+            <img 
+              src={interview.coverImage} 
+              alt={interview.title}
+              className="max-w-full max-h-[90vh] object-contain select-none"
+              referrerPolicy="no-referrer"
+            />
+            <button 
+              onClick={() => setIsLightboxOpen(false)}
+              className="absolute top-4 right-4 bg-black/60 hover:bg-black/80 text-white px-3 py-1.5 rounded-full transition-colors font-sans text-xs font-bold shadow-lg"
+            >
+              ✕ Close
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Main Grid: Header & Blueprint content Left, Tech Specs Sidebar Right */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12">
