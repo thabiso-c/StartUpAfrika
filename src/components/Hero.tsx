@@ -58,25 +58,25 @@ export default function Hero({
         {/* Left Column: Big Featured Card */}
         <div 
           onClick={onSelect}
-          className="lg:col-span-8 overflow-hidden rounded-[20px] bg-gradient-to-r from-stone-950 via-emerald-950 to-[#0c3121] text-white flex flex-col md:flex-row justify-between min-h-[380px] relative border border-emerald-900/30 shadow-sm cursor-pointer hover:border-emerald-500/50 transition-all group"
+          className="lg:col-span-9 overflow-hidden rounded-[20px] bg-gradient-to-r from-stone-950 via-emerald-950 to-[#0c3121] text-white flex flex-col md:flex-row justify-between min-h-[500px] relative border border-emerald-900/30 shadow-sm cursor-pointer hover:border-emerald-500/50 transition-all group"
           id="featured-banner-card"
         >
           {/* Card Left Text Section */}
-          <div className="p-8 sm:p-10 flex flex-col justify-between max-w-xl z-10 relative">
+          <div className="p-10 sm:p-12 flex flex-col justify-between max-w-2xl z-10 relative">
             <div>
               {/* Featured Yellow Pill */}
-              <span className="inline-block bg-amber-400 text-black text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-md mb-6">
+              <span className="inline-block bg-amber-400 text-black text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-md mb-8">
                 Featured
               </span>
               
               {/* Massive Bold Title */}
-              <h2 className="text-3xl sm:text-4xl md:text-[38px] font-extrabold tracking-tight leading-[1.08] text-white mb-4 group-hover:text-emerald-300 transition-colors">
+              <h2 className="text-4xl sm:text-5xl md:text-[44px] font-extrabold tracking-tight leading-[1.08] text-white mb-6 group-hover:text-emerald-300 transition-colors">
                 {featuredArticle ? featuredArticle.title : "Welcome to Slyzah"}
               </h2>
             </div>
             
             {/* Meta Info */}
-            <p className="text-xs font-semibold text-stone-300 uppercase tracking-wider">
+            <p className="text-sm font-semibold text-stone-300 uppercase tracking-wider">
               {featuredArticle 
                 ? `${featuredArticle.founderName || "Founder"} – ${new Date(featuredArticle.updatedAt || featuredArticle.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
                 : "No curation has been featured yet."}
@@ -84,7 +84,7 @@ export default function Hero({
           </div>
 
           {/* Right Section */}
-          <div className="w-full md:w-[45%] h-[260px] md:h-auto relative overflow-hidden shrink-0">
+          <div className="w-full md:w-[50%] h-[300px] md:h-auto relative overflow-hidden shrink-0">
             {featuredArticle?.coverImage ? (
               <img 
                 src={featuredArticle.coverImage} 
@@ -104,7 +104,7 @@ export default function Hero({
 
         {/* Right Column: Subscripts subscription card */}
         <div 
-          className="lg:col-span-4 flex flex-col justify-center bg-white p-6 sm:p-8"
+          className="lg:col-span-3 flex flex-col justify-center bg-white p-6 sm:p-8"
           id="subscripts-panel"
         >
           <h3 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
@@ -167,4 +167,3 @@ export default function Hero({
     </div>
   );
 }
-
