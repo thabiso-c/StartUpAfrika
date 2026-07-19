@@ -112,7 +112,8 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const app = express();
 const PORT = 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Serve uploaded images as static files (local dev only; Vercel uses /tmp)
 app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
@@ -217,13 +218,70 @@ app.post("/api/editor/logout", (req, res) => {
 });
 
 // ── Editor Articles Routes ────────────────────────────────────────────────────
-app.get("/api/editor/articles", requireEditorToken, (_req, res) => {
+app.get("/api/editor/articles", requireEditorToken, async (_req, res) => {
+  if (db) {
+    try {
+      const snapshot = await db.collection("articles").get();
+      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Article));
+      fetched.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      return res.json(fetched);
+    } catch (error) {
+      console.error("Firestore fetch articles error:", error);
+    }
+  }
   res.json(articles.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
 });
 
-app.post("/api/editor/articles", requireEditorToken, (req, res) => {
+app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
   const { id, title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, coverHeight, coverPosition, body, status } = req.body;
   const wordCount = body ? body.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length : 0;
+  
+  if (db) {
+    try {
+      const targetId = id || `art_${Date.now()}`;
+      const docRef = db.collection("articles").doc(targetId);
+      const docSnap = await docRef.get();
+
+      let oldStatus = "draft";
+      let createdAt = new Date().toISOString();
+
+      if (docSnap.exists) {
+        const oldData = docSnap.data();
+        oldStatus = oldData?.status || "draft";
+        createdAt = oldData?.createdAt || createdAt;
+      }
+
+      const savedArticle: Article = {
+        id: targetId,
+        title: title || "Untitled Article",
+        subtitle: subtitle || "",
+        founderName: founderName || "",
+        startupName: startupName || "",
+        location: location || "",
+        foundedYear: foundedYear || "",
+        tags: tags || [],
+        coverImage: coverImage || "",
+        coverHeight: coverHeight !== undefined ? coverHeight : 288,
+        coverPosition: coverPosition || "center",
+        body: body || "",
+        status: status || "draft",
+        wordCount,
+        createdAt,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await docRef.set(savedArticle, { merge: true });
+
+      if (status === "published" && (oldStatus === "draft" || !docSnap.exists)) {
+        sendPublishEmail(savedArticle.title, savedArticle.subtitle);
+      }
+
+      return res.json({ success: true, article: savedArticle });
+    } catch (error) {
+      console.error("Firestore save article error:", error);
+    }
+  }
+
   if (id) {
     const idx = articles.findIndex((a) => a.id === id);
     if (idx !== -1) {
@@ -293,15 +351,33 @@ async function sendPublishEmail(title: string, subtitle: string) {
   }
 }
 
-app.delete("/api/editor/articles/:id", requireEditorToken, (req, res) => {
+app.delete("/api/editor/articles/:id", requireEditorToken, async (req, res) => {
   const { id } = req.params;
+  if (db) {
+    try {
+      await db.collection("articles").doc(id).delete();
+      return res.json({ success: true });
+    } catch (error) {
+      console.error("Firestore delete article error:", error);
+    }
+  }
   const idx = articles.findIndex((a) => a.id === id);
   if (idx !== -1) articles.splice(idx, 1);
   res.json({ success: true });
 });
 
 // ── Public API Routes ─────────────────────────────────────────────────────────
-app.get("/api/articles", (req, res) => {
+app.get("/api/articles", async (req, res) => {
+  if (db) {
+    try {
+      const snapshot = await db.collection("articles").where("status", "==", "published").get();
+      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Article));
+      fetched.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      return res.json(fetched);
+    } catch (error) {
+      console.error("Firestore fetch published articles error:", error);
+    }
+  }
   const published = articles
     .filter((a) => a.status === "published")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
