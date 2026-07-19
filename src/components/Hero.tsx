@@ -105,9 +105,7 @@ export default function Hero({
                 referrerPolicy="no-referrer"
               />
             ) : (
-              <div className="w-full h-full bg-emerald-950/40 flex items-center justify-center border-l border-emerald-900/20">
-                <span className="text-stone-400 text-xs font-mono">// Slyzah Digital</span>
-              </div>
+              <div className="w-full h-full bg-emerald-950/40 border-l border-emerald-900/20"></div>
             )}
             {/* Subtle blending gradient from green image to dark background */}
             <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-emerald-950 to-transparent hidden md:block"></div>

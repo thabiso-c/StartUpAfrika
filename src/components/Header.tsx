@@ -153,18 +153,6 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
               Founders
             </button>
 
-            <button
-              onClick={() => setCurrentTab("outreach")}
-              className={`px-1 py-2 text-sm font-semibold transition-colors ${
-                currentTab === "outreach"
-                  ? "text-emerald-700"
-                  : "text-gray-600 hover:text-emerald-600"
-              }`}
-              id="nav-posts"
-            >
-              Posts
-            </button>
-
             {user ? (
               <div className="flex items-center gap-4 ml-2 sm:ml-4">
                 <div className="flex items-center gap-2">
