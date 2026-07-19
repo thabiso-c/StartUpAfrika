@@ -93,44 +93,61 @@ dotenv.config();
 
 // Initialize Firebase Admin (assumes GOOGLE_APPLICATION_CREDENTIALS is set, or FIREBASE_PROJECT_ID)
 let db: Firestore | null = null;
-try {
-  if (!getApps().length) {
-    const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
-    const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
 
-    if (serviceAccountVar) {
-      try {
-        const serviceAccount = JSON.parse(serviceAccountVar);
-        initializeApp({
-          credential: cert(serviceAccount),
-          projectId: projectId || serviceAccount.project_id
-        });
-        console.log("Firebase Admin successfully initialized via service account.");
-      } catch (parseErr) {
-        console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT, falling back:", parseErr);
-        initializeApp({ projectId: projectId || "startup-afrika" });
+// Catch unhandled rejections globally to prevent any GCP library auth/gRPC failures from crashing the Node.js process.
+process.on("unhandledRejection", (reason, promise) => {
+  console.warn("Caught Unhandled Rejection in background task:", reason);
+});
+
+try {
+  const serviceAccountVar = process.env.FIREBASE_SERVICE_ACCOUNT || process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID;
+
+  if (serviceAccountVar || projectId) {
+    if (!getApps().length) {
+      if (serviceAccountVar) {
+        try {
+          const serviceAccount = JSON.parse(serviceAccountVar);
+          initializeApp({
+            credential: cert(serviceAccount),
+            projectId: projectId || serviceAccount.project_id
+          });
+          console.log("Firebase Admin successfully initialized via service account.");
+        } catch (parseErr) {
+          console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT, falling back:", parseErr);
+          initializeApp({ projectId: projectId || "startup-afrika" });
+        }
+      } else if (projectId) {
+        initializeApp({ projectId });
+        console.log(`Firebase Admin initialized with explicit projectId: ${projectId}`);
       }
-    } else if (projectId) {
-      initializeApp({ projectId });
-      console.log(`Firebase Admin initialized with explicit projectId: ${projectId}`);
-    } else {
-      // Auto-discover credentials and projectId on Google Cloud Run
-      initializeApp();
-      console.log("Firebase Admin initialized via Google Cloud ADC auto-discovery.");
     }
-  }
-  db = getFirestore();
-} catch (error) {
-  console.error("Firebase Admin initialization error, trying default project fallback:", error);
-  try {
+    db = getFirestore();
+  } else {
+    console.log("No Firebase projectId or service account key provided in env. Initializing with fallback default projectId.");
     if (!getApps().length) {
       initializeApp({ projectId: "startup-afrika" });
     }
     db = getFirestore();
-    console.log("Firebase Admin initialized via default project fallback.");
-  } catch (fallbackError) {
-    console.error("Firebase Admin fallback initialization also failed:", fallbackError);
   }
+} catch (error) {
+  console.error("Firebase Admin initialization error, disabling Firestore database:", error);
+  db = null;
+}
+
+// Perform a silent asynchronous validation of Firestore connection.
+// If it fails (due to lack of credentials or project missing), we disable `db` to fallback to local storage.
+if (db) {
+  db.collection("_health")
+    .limit(1)
+    .get()
+    .then(() => {
+      console.log("Firebase Firestore connection verified successfully.");
+    })
+    .catch((err) => {
+      console.warn("Firebase Firestore is unreachable or credentials are missing. Disabling Firestore to fallback to in-memory storage. Error:", err instanceof Error ? err.message : String(err));
+      db = null;
+    });
 }
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
@@ -195,7 +212,9 @@ function requireEditorToken(req: express.Request, res: express.Response, next: e
   next();
 }
 
-// Firestore is now used for subscribers and users
+// Fallback in-memory arrays when Firestore is unavailable/disabled
+const subscribers: Array<{ email: string; date: string; source?: string }> = [];
+const users: Array<{ uid: string; email: string; name: string; picture: string; lastLogin: string; isDemo?: boolean }> = [];
 
 const submissions: Array<{
   id: string;
@@ -420,47 +439,101 @@ app.get("/api/health", (req, res) => {
 
 // Subscriber Endpoints
 app.get("/api/subscribers", async (req, res) => {
-  if (!db) return res.json([]);
+  if (!db) {
+    return res.json(subscribers);
+  }
   try {
     const snapshot = await db.collection("subscribers").get();
     const subs = snapshot.docs.map(doc => doc.data());
     res.json(subs);
   } catch (error) {
-    res.status(500).json({ error: "Failed to fetch subscribers" });
+    console.error("Firestore fetch subscribers error:", error);
+    res.json(subscribers);
   }
 });
 
 app.post("/api/subscribers", async (req, res) => {
-  if (!db) return res.status(503).json({ error: "Database not configured" });
   const { email } = req.body;
   if (!email || !email.includes("@")) {
     return res.status(400).json({ error: "Invalid email address" });
   }
+  const normalizedEmail = email.toLowerCase();
+
+  if (!db) {
+    const exists = subscribers.some(s => s.email === normalizedEmail);
+    if (exists) {
+      return res.status(400).json({ error: "Email is already subscribed" });
+    }
+    const newSub = { email: normalizedEmail, date: new Date().toISOString() };
+    subscribers.push(newSub);
+    return res.json({ success: true, subscriber: newSub });
+  }
+
   try {
-    const docRef = db.collection("subscribers").doc(email.toLowerCase());
+    const docRef = db.collection("subscribers").doc(normalizedEmail);
     const docSnap = await docRef.get();
     if (docSnap.exists) {
       return res.status(400).json({ error: "Email is already subscribed" });
     }
-    const newSub = { email: email.toLowerCase(), date: new Date().toISOString() };
+    const newSub = { email: normalizedEmail, date: new Date().toISOString() };
     await docRef.set(newSub);
     res.json({ success: true, subscriber: newSub });
   } catch (error) {
-    res.status(500).json({ error: "Failed to subscribe" });
+    console.error("Firestore subscribe error:", error);
+    const exists = subscribers.some(s => s.email === normalizedEmail);
+    if (exists) {
+      return res.status(400).json({ error: "Email is already subscribed" });
+    }
+    const newSub = { email: normalizedEmail, date: new Date().toISOString() };
+    subscribers.push(newSub);
+    res.json({ success: true, subscriber: newSub });
   }
 });
 
 // Demo/Developer Bypass Login
 app.post("/api/users/demo-login", async (req, res) => {
-  if (!db) return res.status(503).json({ error: "Database not configured" });
   const { email, name, picture } = req.body;
   if (!email || !email.includes("@")) {
     return res.status(400).json({ error: "Invalid email address" });
   }
+  const normalizedEmail = email.toLowerCase();
+
+  if (!db) {
+    const user = {
+      uid: normalizedEmail,
+      email: normalizedEmail,
+      name: name || "Developer Demo",
+      picture: picture || "",
+      lastLogin: new Date().toISOString(),
+      isDemo: true
+    };
+    const exists = users.some(u => u.uid === normalizedEmail);
+    if (!exists) {
+      users.push(user);
+    }
+    const subExists = subscribers.some(s => s.email === normalizedEmail);
+    if (!subExists) {
+      subscribers.push({
+        email: normalizedEmail,
+        date: new Date().toISOString(),
+        source: 'demo_signup'
+      });
+    }
+    return res.json({
+      success: true,
+      user: {
+        uid: normalizedEmail,
+        email: normalizedEmail,
+        displayName: user.name,
+        photoURL: user.picture
+      }
+    });
+  }
+
   try {
-    const userRef = db.collection("users").doc(email.toLowerCase());
+    const userRef = db.collection("users").doc(normalizedEmail);
     await userRef.set({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       name: name || "Developer Demo",
       picture: picture || "",
       lastLogin: new Date().toISOString(),
@@ -468,11 +541,11 @@ app.post("/api/users/demo-login", async (req, res) => {
     }, { merge: true });
 
     // Auto-subscribe
-    const subRef = db.collection("subscribers").doc(email.toLowerCase());
+    const subRef = db.collection("subscribers").doc(normalizedEmail);
     const subSnap = await subRef.get();
     if (!subSnap.exists) {
       await subRef.set({
-        email: email.toLowerCase(),
+        email: normalizedEmail,
         date: new Date().toISOString(),
         source: 'demo_signup'
       });
@@ -481,27 +554,66 @@ app.post("/api/users/demo-login", async (req, res) => {
     res.json({
       success: true,
       user: {
-        uid: email.toLowerCase(),
-        email: email.toLowerCase(),
+        uid: normalizedEmail,
+        email: normalizedEmail,
         displayName: name || "Developer Demo",
         photoURL: picture || ""
       }
     });
   } catch (error) {
     console.error("Demo login error:", error);
-    res.status(500).json({ error: "Failed to process demo login" });
+    const user = {
+      uid: normalizedEmail,
+      email: normalizedEmail,
+      name: name || "Developer Demo",
+      picture: picture || "",
+      lastLogin: new Date().toISOString(),
+      isDemo: true
+    };
+    const exists = users.some(u => u.uid === normalizedEmail);
+    if (!exists) {
+      users.push(user);
+    }
+    return res.json({
+      success: true,
+      user: {
+        uid: normalizedEmail,
+        email: normalizedEmail,
+        displayName: user.name,
+        photoURL: user.picture
+      }
+    });
   }
 });
 
 // User Sync Endpoint
 app.post("/api/users/sync", async (req, res) => {
-  if (!db) return res.status(503).json({ error: "Database not configured" });
   const authHeader = req.headers.authorization;
   if (!authHeader?.startsWith("Bearer ")) return res.status(401).json({ error: "Unauthorized" });
   
   const idToken = authHeader.split("Bearer ")[1];
   try {
     const decodedToken = await verifyFirebaseIdToken(idToken);
+    if (!db) {
+      const user = {
+        uid: decodedToken.uid,
+        email: decodedToken.email || "",
+        name: decodedToken.name || "",
+        picture: decodedToken.picture || "",
+        lastLogin: new Date().toISOString()
+      };
+      const exists = users.some(u => u.uid === user.uid);
+      if (!exists) users.push(user);
+
+      if (decodedToken.email) {
+        const subExists = subscribers.some(s => s.email === decodedToken.email!.toLowerCase());
+        if (!subExists) {
+          subscribers.push({ email: decodedToken.email.toLowerCase(), date: new Date().toISOString(), source: 'signup' });
+        }
+      }
+      return res.json({ success: true });
+    }
+
     const userRef = db.collection("users").doc(decodedToken.uid);
     await userRef.set({
       email: decodedToken.email,
