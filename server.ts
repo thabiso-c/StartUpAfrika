@@ -144,28 +144,39 @@ try {
   const shouldInitializeFirestore = hasCredentials || (isProduction && !!projectId);
 
   if (shouldInitializeFirestore) {
+    let app;
     if (!getApps().length) {
       if (serviceAccountVar) {
         try {
           const serviceAccount = JSON.parse(serviceAccountVar);
-          initializeApp({
+          app = initializeApp({
             credential: cert(serviceAccount),
             projectId: projectId || serviceAccount.project_id
           });
           console.log("Firebase Admin successfully initialized via service account.");
         } catch (parseErr) {
           console.error("Failed to parse FIREBASE_SERVICE_ACCOUNT, falling back:", parseErr);
-          initializeApp({ projectId: projectId || "startup-afrika" });
+          app = initializeApp({ projectId: projectId || "startup-afrika" });
         }
       } else if (projectId) {
-        initializeApp({ projectId });
+        app = initializeApp({ projectId });
         console.log(`Firebase Admin initialized with explicit projectId: ${projectId}`);
       } else {
-        initializeApp();
+        app = initializeApp();
         console.log("Firebase Admin initialized via default ambient credentials.");
       }
+    } else {
+      app = getApps()[0];
     }
-    db = getFirestore();
+
+    const dbId = process.env.FIREBASE_DATABASE_ID || process.env.VITE_FIREBASE_DATABASE_ID;
+    if (dbId && dbId !== "(default)") {
+      console.log(`Initializing Firestore with custom database ID: ${dbId}`);
+      db = getFirestore(app, dbId);
+    } else {
+      console.log("Initializing Firestore with standard (default) database.");
+      db = getFirestore(app);
+    }
   } else {
     console.log("Firestore is disabled (no credentials in development or missing project ID in production); falling back to local file persistence.");
     db = null;
