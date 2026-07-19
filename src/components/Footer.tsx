@@ -19,7 +19,7 @@ export default function Footer() {
           <div className="text-center md:text-left">
             <h3 className="font-sans font-bold text-gray-900 text-lg">Startup Afrika</h3>
             <p className="text-sm text-gray-500 mt-1 max-w-sm">
-              Documenting the authentic, in-the-trenches blueprints of successful apps and websites across the African continent.
+              Documenting the authentic, in-the-trenches stories of successful founders and startups across the African continent.
             </p>
           </div>
           <div className="flex flex-col items-center md:items-end gap-2 relative">

@@ -97,13 +97,13 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
-  // Synchronize state from URL query parameter (?blueprint=ID)
+  // Synchronize state from URL query parameter (?article=ID)
   useEffect(() => {
     const syncStateFromUrl = () => {
       const params = new URLSearchParams(window.location.search);
-      const blueprintId = params.get("blueprint");
-      if (blueprintId) {
-        setSelectedInterviewId(blueprintId);
+      const articleId = params.get("article");
+      if (articleId) {
+        setSelectedInterviewId(articleId);
         setCurrentTab("explore");
       } else {
         setSelectedInterviewId(null);
@@ -121,15 +121,15 @@ export default function App() {
   // Sync selectedInterviewId state to URL query parameter
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const currentParam = params.get("blueprint");
+    const currentParam = params.get("article");
     if (selectedInterviewId) {
       if (currentParam !== selectedInterviewId) {
-        params.set("blueprint", selectedInterviewId);
+        params.set("article", selectedInterviewId);
         window.history.pushState({}, "", `${window.location.pathname}?${params.toString()}`);
       }
     } else {
       if (currentParam) {
-        params.delete("blueprint");
+        params.delete("article");
         const query = params.toString();
         window.history.pushState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
       }
@@ -176,7 +176,7 @@ export default function App() {
               <div className="flex items-center gap-2 mb-8 pb-3 border-b border-gray-100">
                 <BookOpen className="w-5 h-5 text-emerald-600" />
                 <h3 className="font-sans font-bold text-gray-900 text-lg">
-                  Latest Blueprint Curations
+                  Latest Founder Stories
                 </h3>
               </div>
 
@@ -184,7 +184,7 @@ export default function App() {
               <div className="flex flex-col divide-y divide-gray-100" id="interviews-feed">
                 {loadingArticles ? (
                   <div className="text-center py-12 text-gray-400 text-sm">
-                    Loading latest blueprints…
+                    Loading latest stories…
                   </div>
                 ) : publishedArticles.length > 1 ? (
                   publishedArticles.slice(1).map((interview) => (
@@ -196,11 +196,11 @@ export default function App() {
                   ))
                 ) : publishedArticles.length === 1 ? (
                   <div className="text-center py-12 text-gray-400 text-sm">
-                    All set! There are no other blueprint curations yet.
+                    All set! There are no other curations yet.
                   </div>
                 ) : (
                   <div className="text-center py-12 text-gray-400 text-sm">
-                    No blueprint curations have been published yet.
+                    No curations have been published yet.
                   </div>
                 )}
               </div>

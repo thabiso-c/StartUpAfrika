@@ -427,7 +427,7 @@ function buildEmailHtml(article: Article): string {
   const tagsHtml = (tags || []).map((t: string) => 
     `<span style="display:inline-block;background:rgba(5,150,105,0.15);color:#059669;font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;margin:0 4px 4px 0;letter-spacing:0.3px;">${t}</span>`
   ).join("");
-  const articleUrl = `https://startup.afrika?blueprint=${article.id}`;
+  const articleUrl = `https://startup.afrika?article=${article.id}`;
 
   return `<!DOCTYPE html>
 <html>
@@ -449,7 +449,7 @@ function buildEmailHtml(article: Article): string {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="font-size:14px;font-weight:700;color:#065f46;letter-spacing:1px;text-transform:uppercase;">Startup Afrika</td>
-                  <td align="right" style="font-size:12px;color:#9ca3af;">New Blueprint</td>
+                  <td align="right" style="font-size:12px;color:#9ca3af;">New Article</td>
                 </tr>
               </table>
               <div style="height:1px;background:#e5e7eb;margin:16px 0 0;"></div>
@@ -513,7 +513,7 @@ function buildEmailHtml(article: Article): string {
               <table cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="background:#065f46;border-radius:10px;padding:0;">
-                    <a href="${articleUrl}" target="_blank" style="display:inline-block;padding:14px 36px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.5px;text-transform:uppercase;">Read the Full Blueprint →</a>
+                    <a href="${articleUrl}" target="_blank" style="display:inline-block;padding:14px 36px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.5px;text-transform:uppercase;">Read the Full Story →</a>
                   </td>
                 </tr>
               </table>
@@ -524,7 +524,7 @@ function buildEmailHtml(article: Article): string {
             <td style="background:#f3f4f6;padding:24px 32px;">
               <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
                 You received this email because you subscribed to Startup Afrika.<br>
-                <a href="https://startup.afrika" style="color:#065f46;text-decoration:underline;">Startup Afrika</a> — Blueprints from African founders
+                <a href="https://startup.afrika" style="color:#065f46;text-decoration:underline;">Startup Afrika</a> — Stories from African founders
               </p>
             </td>
           </tr>
@@ -569,7 +569,7 @@ async function sendPublishEmail(article: Article) {
           await resend.emails.send({
             from: 'Startup Afrika <newsletter@startupafrika.co.za>',
             to: allEmails.slice(0, 50),
-            subject: `New Blueprint: ${article.title}`,
+            subject: `New Article: ${article.title}`,
             html: emailHtml
           });
           isSimulated = false;
