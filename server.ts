@@ -341,6 +341,26 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
   const { id, title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, coverHeight, coverPosition, body, status } = req.body;
   const wordCount = body ? body.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length : 0;
   
+  // Build article object for email
+  const buildArticle = (targetId: string, createdAt: string) => ({
+    id: targetId,
+    title: title || "Untitled Article",
+    subtitle: subtitle || "",
+    founderName: founderName || "",
+    startupName: startupName || "",
+    location: location || "",
+    foundedYear: foundedYear || "",
+    tags: tags || [],
+    coverImage: coverImage || "",
+    coverHeight: coverHeight !== undefined ? coverHeight : 288,
+    coverPosition: coverPosition || "center",
+    body: body || "",
+    status: status || "draft",
+    wordCount,
+    createdAt,
+    updatedAt: new Date().toISOString(),
+  });
+  
   if (db) {
     try {
       const targetId = id || `art_${Date.now()}`;
@@ -356,30 +376,13 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
         createdAt = oldData?.createdAt || createdAt;
       }
 
-      const savedArticle: Article = {
-        id: targetId,
-        title: title || "Untitled Article",
-        subtitle: subtitle || "",
-        founderName: founderName || "",
-        startupName: startupName || "",
-        location: location || "",
-        foundedYear: foundedYear || "",
-        tags: tags || [],
-        coverImage: coverImage || "",
-        coverHeight: coverHeight !== undefined ? coverHeight : 288,
-        coverPosition: coverPosition || "center",
-        body: body || "",
-        status: status || "draft",
-        wordCount,
-        createdAt,
-        updatedAt: new Date().toISOString(),
-      };
+      const savedArticle = buildArticle(targetId, createdAt);
 
       await docRef.set(savedArticle, { merge: true });
 
       let emailResult = null;
       if (status === "published") {
-        emailResult = await sendPublishEmail(savedArticle.title, savedArticle.subtitle);
+        emailResult = await sendPublishEmail(savedArticle);
       }
 
       return res.json({ success: true, article: savedArticle, emailResult });
@@ -397,41 +400,143 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
       
       let emailResult = null;
       if (status === "published") {
-        emailResult = await sendPublishEmail(title, subtitle);
+        emailResult = await sendPublishEmail(articles[idx]);
       }
       saveJsonArray(ARTICLES_FILE, articles);
       return res.json({ success: true, article: articles[idx], emailResult });
     }
   }
-  const newArticle: Article = {
-    id: `art_${Date.now()}`,
-    title: title || "Untitled Article",
-    subtitle: subtitle || "",
-    founderName: founderName || "",
-    startupName: startupName || "",
-    location: location || "",
-    foundedYear: foundedYear || "",
-    tags: tags || [],
-    coverImage: coverImage || "",
-    coverHeight: coverHeight !== undefined ? coverHeight : 288,
-    coverPosition: coverPosition || "center",
-    body: body || "",
-    status: status || "draft",
-    wordCount,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const newArticle: Article = buildArticle(`art_${Date.now()}`, new Date().toISOString());
   articles.push(newArticle);
   saveJsonArray(ARTICLES_FILE, articles);
 
   let emailResult = null;
   if (status === "published") {
-    emailResult = await sendPublishEmail(title, subtitle);
+    emailResult = await sendPublishEmail(newArticle);
   }
   res.json({ success: true, article: newArticle, emailResult });
 });
 
-async function sendPublishEmail(title: string, subtitle: string) {
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+}
+
+function buildEmailHtml(article: Article): string {
+  const { title, subtitle, founderName, startupName, coverImage, tags, body } = article;
+  const previewText = stripHtml(body).substring(0, 200);
+  const tagsHtml = (tags || []).map((t: string) => 
+    `<span style="display:inline-block;background:rgba(5,150,105,0.15);color:#059669;font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;margin:0 4px 4px 0;letter-spacing:0.3px;">${t}</span>`
+  ).join("");
+  const articleUrl = `https://startup.afrika?blueprint=${article.id}`;
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:'Inter',Helvetica,Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:24px 16px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+          <!-- Header -->
+          <tr>
+            <td style="padding:28px 32px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="font-size:14px;font-weight:700;color:#065f46;letter-spacing:1px;text-transform:uppercase;">Startup Afrika</td>
+                  <td align="right" style="font-size:12px;color:#9ca3af;">New Blueprint</td>
+                </tr>
+              </table>
+              <div style="height:1px;background:#e5e7eb;margin:16px 0 0;"></div>
+            </td>
+          </tr>
+          <!-- Cover Image -->
+          ${coverImage ? `<tr>
+            <td style="padding:20px 0 0;">
+              <img src="${coverImage}" alt="${founderName || 'Article'}" style="width:100%;height:auto;max-height:360px;object-fit:cover;display:block;" />
+            </td>
+          </tr>` : `<tr>
+            <td style="padding:32px 32px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#0c3121,#064e3b);border-radius:12px;padding:48px 32px;">
+                <tr><td align="center" style="color:rgba(255,255,255,0.6);font-size:13px;font-weight:500;letter-spacing:0.5px;">📖 Startup Afrika</td></tr>
+              </table>
+            </td>
+          </tr>`}
+          <!-- Tags -->
+          ${tagsHtml ? `<tr>
+            <td style="padding:24px 32px 0;">${tagsHtml}</td>
+          </tr>` : ''}
+          <!-- Title -->
+          <tr>
+            <td style="padding:${tagsHtml ? '8px' : '28px'} 32px 0;">
+              <h1 style="margin:0;font-size:28px;font-weight:800;color:#111827;line-height:1.2;letter-spacing:-0.3px;">${title}</h1>
+            </td>
+          </tr>
+          <!-- Subtitle -->
+          ${subtitle ? `<tr>
+            <td style="padding:12px 32px 0;">
+              <p style="margin:0;font-size:16px;color:#6b7280;line-height:1.5;">${subtitle}</p>
+            </td>
+          </tr>` : ''}
+          <!-- Founder Info -->
+          <tr>
+            <td style="padding:20px 32px 0;">
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="44" style="width:44px;vertical-align:middle;">
+                    <table width="44" height="44" cellpadding="0" cellspacing="0" style="width:44px;height:44px;background:#047857;border-radius:50%;">
+                      <tr><td align="center" style="color:#fff;font-size:18px;font-weight:700;">${(founderName || 'S')?.charAt(0).toUpperCase()}</td></tr>
+                    </table>
+                  </td>
+                  <td style="padding-left:12px;vertical-align:middle;">
+                    <p style="margin:0;font-size:14px;font-weight:600;color:#374151;">${founderName || 'Startup Afrika'}</p>
+                    <p style="margin:2px 0 0;font-size:13px;color:#9ca3af;">${startupName || 'Featured Article'}</p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Preview Body -->
+          ${previewText ? `<tr>
+            <td style="padding:20px 32px 0;">
+              <p style="margin:0;font-size:15px;color:#4b5563;line-height:1.7;">${previewText}…</p>
+            </td>
+          </tr>` : ''}
+          <!-- CTA Button -->
+          <tr>
+            <td style="padding:28px 32px 40px;">
+              <table cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="background:#065f46;border-radius:10px;padding:0;">
+                    <a href="${articleUrl}" target="_blank" style="display:inline-block;padding:14px 36px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.5px;text-transform:uppercase;">Read the Full Blueprint →</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <!-- Footer -->
+          <tr>
+            <td style="background:#f3f4f6;padding:24px 32px;">
+              <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
+                You received this email because you subscribed to Startup Afrika.<br>
+                <a href="https://startup.afrika" style="color:#065f46;text-decoration:underline;">Startup Afrika</a> — Blueprints from African founders
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+async function sendPublishEmail(article: Article) {
   let allEmails: string[] = [];
   try {
     if (db) {
@@ -460,15 +565,16 @@ async function sendPublishEmail(title: string, subtitle: string) {
     if (allEmails.length > 0) {
       if (resend && process.env.RESEND_API_KEY) {
         try {
+          const emailHtml = buildEmailHtml(article);
           await resend.emails.send({
             from: 'Startup Afrika <newsletter@startupafrika.co.za>',
             to: allEmails.slice(0, 50),
-            subject: `New Article: ${title}`,
-            html: `<p>A new article has been published on Startup Afrika: <strong>${title}</strong></p><p>${subtitle}</p><p><a href="https://startup.afrika">Read it now</a></p>`
+            subject: `New Blueprint: ${article.title}`,
+            html: emailHtml
           });
           isSimulated = false;
           sent = true;
-          console.log(`Announcement email sent to ${Math.min(allEmails.length, 50)} subscribers.`);
+          console.log(`Beautiful announcement email sent to ${Math.min(allEmails.length, 50)} subscribers.`);
         } catch (err) {
           console.error("Resend API failed, falling back to simulation log. Error:", err);
         }
@@ -481,8 +587,8 @@ async function sendPublishEmail(title: string, subtitle: string) {
       const logs = loadJsonArray(EMAIL_LOGS_FILE, [] as any[]);
       const newLog = {
         id: `email_log_${Date.now()}`,
-        title,
-        subtitle,
+        title: article.title,
+        subtitle: article.subtitle,
         emailsCount: allEmails.length,
         emails: allEmails,
         sentAt: new Date().toISOString(),
