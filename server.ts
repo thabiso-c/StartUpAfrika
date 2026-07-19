@@ -461,7 +461,7 @@ async function sendPublishEmail(title: string, subtitle: string) {
       if (resend && process.env.RESEND_API_KEY) {
         try {
           await resend.emails.send({
-            from: 'Startup Afrika <onboarding@resend.dev>',
+            from: 'Startup Afrika <newsletter@startupafrika.co.za>',
             to: allEmails.slice(0, 50),
             subject: `New Article: ${title}`,
             html: `<p>A new article has been published on Startup Afrika: <strong>${title}</strong></p><p>${subtitle}</p><p><a href="https://startup.afrika">Read it now</a></p>`
