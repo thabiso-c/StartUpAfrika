@@ -49,17 +49,29 @@ export default function InterviewDetail({ interview, onBack }: InterviewDetailPr
   };
 
   const scheme = colorMap[interview.accentColor] || colorMap.emerald;
+  const [copied, setCopied] = useState(false);
 
   const handleShare = () => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?blueprint=${interview.id}`;
     if (navigator.share) {
       navigator.share({
-        title: `${interview.startupName} Blueprint - Startup Afrika`,
-        text: `Check out how ${interview.founderName} built and scaled ${interview.startupName}!`,
-        url: window.location.href,
-      }).catch(console.error);
+        title: `${interview.title} - Startup Afrika`,
+        text: `Read the custom blueprint for ${interview.startupName} on Slyzah!`,
+        url: shareUrl,
+      })
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          console.error(err);
+        }
+      });
     } else {
-      navigator.clipboard.writeText(window.location.href);
-      alert("Link copied to clipboard! Share it with fellow founders.");
+      navigator.clipboard.writeText(shareUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
   };
 
@@ -78,11 +90,24 @@ export default function InterviewDetail({ interview, onBack }: InterviewDetailPr
 
         <button
           onClick={handleShare}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-gray-200 text-xs font-semibold text-gray-600 hover:text-emerald-700 hover:bg-gray-50 transition-colors shadow-sm"
+          className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all shadow-sm ${
+            copied 
+              ? "bg-emerald-50 border-emerald-200 text-emerald-700 scale-[0.98]" 
+              : "border-gray-200 text-gray-600 hover:text-emerald-700 hover:bg-gray-50"
+          }`}
           id="detail-share-button"
         >
-          <Share2 className="w-3.5 h-3.5" />
-          Share Blueprint
+          {copied ? (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Link Copied!
+            </>
+          ) : (
+            <>
+              <Share2 className="w-3.5 h-3.5" />
+              Share Blueprint
+            </>
+          )}
         </button>
       </div>
 
@@ -90,16 +115,16 @@ export default function InterviewDetail({ interview, onBack }: InterviewDetailPr
       {interview.coverImage && (
         <div 
           onClick={() => setIsLightboxOpen(true)}
-          className="w-full h-[240px] sm:h-[360px] md:h-[420px] rounded-[24px] overflow-hidden mb-10 shadow-sm border border-gray-150/40 relative cursor-zoom-in hover:opacity-95 transition-all group"
+          className="w-full rounded-[24px] overflow-hidden mb-10 shadow-sm border border-gray-150/40 relative cursor-zoom-in hover:opacity-95 transition-all group bg-stone-50 flex items-center justify-center"
           id="detail-cover-image"
         >
           <img 
             src={interview.coverImage} 
             alt={interview.title}
-            className="w-full h-full object-cover select-none group-hover:scale-[1.01] transition-transform duration-500"
+            className="w-full h-auto max-h-[500px] object-contain select-none group-hover:scale-[1.005] transition-transform duration-500"
             referrerPolicy="no-referrer"
           />
-          <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
             <span className="bg-black/60 text-white text-xs font-semibold px-3 py-1.5 rounded-full backdrop-blur-sm">
               Click to zoom
             </span>

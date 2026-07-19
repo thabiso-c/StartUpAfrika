@@ -61,6 +61,45 @@ export default function App() {
     return () => unsubscribe();
   }, []);
 
+  // Synchronize state from URL query parameter (?blueprint=ID)
+  useEffect(() => {
+    const syncStateFromUrl = () => {
+      const params = new URLSearchParams(window.location.search);
+      const blueprintId = params.get("blueprint");
+      if (blueprintId) {
+        setSelectedInterviewId(blueprintId);
+        setCurrentTab("explore");
+      } else {
+        setSelectedInterviewId(null);
+      }
+    };
+
+    window.addEventListener("popstate", syncStateFromUrl);
+    syncStateFromUrl(); // run once on mount
+
+    return () => {
+      window.removeEventListener("popstate", syncStateFromUrl);
+    };
+  }, []);
+
+  // Sync selectedInterviewId state to URL query parameter
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const currentParam = params.get("blueprint");
+    if (selectedInterviewId) {
+      if (currentParam !== selectedInterviewId) {
+        params.set("blueprint", selectedInterviewId);
+        window.history.pushState({}, "", `${window.location.pathname}?${params.toString()}`);
+      }
+    } else {
+      if (currentParam) {
+        params.delete("blueprint");
+        const query = params.toString();
+        window.history.pushState({}, "", `${window.location.pathname}${query ? `?${query}` : ""}`);
+      }
+    }
+  }, [selectedInterviewId]);
+
   useEffect(() => {
     fetchPublishedArticles();
   }, [currentTab]); // re-fetch when coming back to explore or changing tabs
