@@ -7,6 +7,8 @@ import {
 } from "lucide-react";
 import { storage } from "../../config/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import ReactCrop, { type Crop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 
 interface Article {
   id: string; title: string; subtitle: string;
@@ -39,6 +41,14 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingInline, setUploadingInline] = useState(false);
+  const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  
+  // Crop states
+  const [cropModalOpen, setCropModalOpen] = useState(false);
+  const [cropTarget, setCropTarget] = useState<HTMLImageElement | null>(null);
+  const [crop, setCrop] = useState<Crop>();
+  const [cropUploading, setCropUploading] = useState(false);
+  const cropImageRef = useRef<HTMLImageElement>(null);
 
   const editorRef = useRef<HTMLDivElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -101,29 +111,33 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
     } finally { setUploadingCover(false); }
   };
 
-  const handleInlineImageUpload = async (file: File) => {
+  const handleInlineImageUpload = async (files: FileList | File[]) => {
     if (!storage) {
       alert("Firebase Storage is not configured.");
       return;
     }
     setUploadingInline(true);
     try {
-      const ext = file.name.split('.').pop();
-      const storageRef = ref(storage, `editor/inline/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      const img = `<img src="${url}" alt="Article image" style="max-width:100%;border-radius:8px;margin:12px 0;" />`;
-      exec("insertHTML", img);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const ext = file.name.split('.').pop();
+        const storageRef = ref(storage, `editor/inline/${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`);
+        await uploadBytes(storageRef, file);
+        const url = await getDownloadURL(storageRef);
+        const img = `<img src="${url}" alt="Article image" style="max-width:100%;border-radius:8px;margin:12px 0;cursor:pointer;" />`;
+        exec("insertHTML", img);
+      }
     } catch (e) {
       console.error(e);
-      alert("Failed to upload image.");
+      alert("Failed to upload image(s).");
     } finally { setUploadingInline(false); }
   };
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-    const file = e.dataTransfer.files[0];
-    if (file && file.type.startsWith("image/")) handleInlineImageUpload(file);
+    if (e.dataTransfer.files?.length > 0) {
+      handleInlineImageUpload(e.dataTransfer.files);
+    }
   };
 
   const handleSave = async () => {
@@ -168,6 +182,79 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
   };
 
   const removeTag = (t: string) => setTags(tags.filter((x) => x !== t));
+
+  const handleEditorClick = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.tagName === "IMG") {
+      setSelectedImg(target as HTMLImageElement);
+    } else {
+      setSelectedImg(null);
+    }
+  };
+
+  const setImgAlign = (align: 'left' | 'center' | 'right' | 'full') => {
+    if (!selectedImg) return;
+    if (align === 'left') {
+      selectedImg.style.float = 'left';
+      selectedImg.style.margin = '12px 24px 12px 0';
+      selectedImg.style.maxWidth = '50%';
+    } else if (align === 'right') {
+      selectedImg.style.float = 'right';
+      selectedImg.style.margin = '12px 0 12px 24px';
+      selectedImg.style.maxWidth = '50%';
+    } else if (align === 'center') {
+      selectedImg.style.float = 'none';
+      selectedImg.style.display = 'block';
+      selectedImg.style.margin = '12px auto';
+      selectedImg.style.maxWidth = '80%';
+    } else {
+      selectedImg.style.float = 'none';
+      selectedImg.style.display = 'block';
+      selectedImg.style.margin = '12px 0';
+      selectedImg.style.maxWidth = '100%';
+    }
+    updateWordCount();
+  };
+
+  const openCropModal = (img: HTMLImageElement) => {
+    setCropTarget(img);
+    setCrop(undefined);
+    setCropModalOpen(true);
+  };
+
+  const handleCropSave = async () => {
+    if (!cropTarget || !crop || !storage || !cropImageRef.current) return;
+    setCropUploading(true);
+    try {
+      const image = cropImageRef.current;
+      const canvas = document.createElement("canvas");
+      const scaleX = image.naturalWidth / image.width;
+      const scaleY = image.naturalHeight / image.height;
+      canvas.width = crop.width;
+      canvas.height = crop.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(
+        image,
+        crop.x * scaleX, crop.y * scaleY,
+        crop.width * scaleX, crop.height * scaleY,
+        0, 0,
+        crop.width, crop.height
+      );
+      const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => b ? res(b) : rej(), "image/jpeg", 0.95));
+      const storageRef = ref(storage, `editor/inline/cropped_${Date.now()}.jpg`);
+      await uploadBytes(storageRef, blob);
+      const url = await getDownloadURL(storageRef);
+      cropTarget.src = url;
+      setCropModalOpen(false);
+      setCropTarget(null);
+    } catch (e) {
+      console.error(e);
+      alert("Failed to crop image.");
+    } finally {
+      setCropUploading(false);
+    }
+  };
 
   // Toolbar button component
   const ToolBtn = ({ icon: Icon, cmd, val, title: tip }: { icon: any; cmd?: string; val?: string; title: string; onClick?: () => void }) => (
@@ -277,7 +364,7 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
             <div>
               {coverImage ? (
                 <div className="relative group rounded-2xl overflow-hidden">
-                  <img src={coverImage} alt="Cover" className="w-full h-52 object-cover" />
+                  <img src={coverImage} alt="Cover" className="w-full h-72 object-cover" />
                   <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-all">
                     <button onClick={() => coverInputRef.current?.click()} className="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all">
                       <Upload className="w-3.5 h-3.5" /> Change Cover
@@ -406,7 +493,7 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
               >
                 {uploadingInline ? <Loader className="w-4 h-4 animate-spin" /> : <Image className="w-4 h-4" />}
               </button>
-              <input ref={inlineInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => { if (e.target.files?.[0]) handleInlineImageUpload(e.target.files[0]); }} />
+              <input ref={inlineInputRef} type="file" multiple accept="image/*" className="hidden" onChange={(e) => { if (e.target.files) handleInlineImageUpload(e.target.files); }} />
 
               {/* Link input popup */}
               {showLinkInput && (
@@ -425,11 +512,25 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
               )}
             </div>
 
+            {/* Image Selected Options */}
+            {selectedImg && (
+              <div className="sticky top-[68px] z-10 bg-emerald-900/40 border border-emerald-500/30 rounded-xl px-3 py-2 flex flex-wrap items-center gap-2">
+                <span className="text-emerald-300 text-xs font-semibold uppercase tracking-wider mr-2">Image Options</span>
+                <button onClick={() => setImgAlign('left')} className="text-xs font-medium text-emerald-100 bg-white/10 hover:bg-white/20 px-2 py-1.5 rounded transition-colors">Align Left</button>
+                <button onClick={() => setImgAlign('center')} className="text-xs font-medium text-emerald-100 bg-white/10 hover:bg-white/20 px-2 py-1.5 rounded transition-colors">Center</button>
+                <button onClick={() => setImgAlign('right')} className="text-xs font-medium text-emerald-100 bg-white/10 hover:bg-white/20 px-2 py-1.5 rounded transition-colors">Align Right</button>
+                <button onClick={() => setImgAlign('full')} className="text-xs font-medium text-emerald-100 bg-white/10 hover:bg-white/20 px-2 py-1.5 rounded transition-colors">Full Width</button>
+                <div className="h-4 w-px bg-emerald-500/30 mx-1" />
+                <button onClick={() => openCropModal(selectedImg)} className="text-xs font-bold text-purple-100 bg-purple-600/70 hover:bg-purple-600 px-3 py-1.5 rounded transition-all">Crop Image</button>
+              </div>
+            )}
+
             {/* Body Editor */}
             <div
               ref={editorRef}
               contentEditable
               suppressContentEditableWarning
+              onClick={handleEditorClick}
               onInput={updateWordCount}
               onDrop={handleDrop}
               onDragOver={(e) => e.preventDefault()}
@@ -475,6 +576,47 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
         .empty-editor li { margin: 0.3rem 0; }
         .empty-editor a { color: #34d399; text-decoration: underline; }
       `}</style>
+
+      {/* Crop Modal */}
+      {cropModalOpen && cropTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+          <div className="bg-[#1a221d] rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] flex flex-col shadow-2xl border border-white/10">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-white text-lg font-bold">Crop Image</h3>
+              <button onClick={() => setCropModalOpen(false)} className="text-white/50 hover:text-white transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto bg-black/50 rounded-xl flex items-center justify-center p-4">
+              <ReactCrop crop={crop} onChange={(_, percentCrop) => setCrop(percentCrop)}>
+                <img
+                  ref={cropImageRef}
+                  src={cropTarget.src}
+                  crossOrigin="anonymous"
+                  alt="Crop preview"
+                  className="max-h-[60vh] object-contain"
+                />
+              </ReactCrop>
+            </div>
+            <div className="flex justify-end gap-3 mt-6">
+              <button
+                onClick={() => setCropModalOpen(false)}
+                className="px-4 py-2 text-sm font-semibold text-white/50 hover:text-white bg-white/5 hover:bg-white/10 rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCropSave}
+                disabled={cropUploading || !crop}
+                className="flex items-center gap-2 px-5 py-2 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 rounded-lg transition-colors"
+              >
+                {cropUploading && <Loader className="w-4 h-4 animate-spin" />}
+                Save Crop
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

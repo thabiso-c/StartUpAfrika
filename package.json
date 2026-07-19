@@ -24,6 +24,7 @@
     "multer": "^2.2.0",
     "react": "^19.0.1",
     "react-dom": "^19.0.1",
+    "react-image-crop": "^11.1.2",
     "resend": "^6.17.2",
     "vite": "^6.2.3"
   },
