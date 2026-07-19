@@ -9,8 +9,85 @@ import fs from "fs";
 import crypto from "crypto";
 import { initializeApp, getApps } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
-import { getAuth } from "firebase-admin/auth";
 import { Resend } from "resend";
+
+interface DecodedFirebaseToken {
+  uid: string;
+  email?: string;
+  name?: string;
+  picture?: string;
+  [key: string]: any;
+}
+
+let cachedKeys: Record<string, string> = {};
+let cacheExpiry = 0;
+
+async function getGooglePublicKeys(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (now < cacheExpiry && Object.keys(cachedKeys).length > 0) {
+    return cachedKeys;
+  }
+  const res = await fetch("https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com");
+  const data = await res.json() as Record<string, string>;
+  cachedKeys = data;
+  cacheExpiry = now + 3600 * 1000; // Cache for 1 hour
+  return cachedKeys;
+}
+
+async function verifyFirebaseIdToken(idToken: string): Promise<DecodedFirebaseToken> {
+  const parts = idToken.split(".");
+  if (parts.length !== 3) {
+    throw new Error("Invalid JWT token format");
+  }
+
+  const header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf-8"));
+  const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf-8"));
+
+  if (header.alg !== "RS256") {
+    throw new Error("Invalid signature algorithm");
+  }
+
+  const projectId = process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "startup-afrika";
+  const now = Math.floor(Date.now() / 1000);
+
+  if (payload.aud !== projectId) {
+    throw new Error(`Invalid audience: expected ${projectId}, got ${payload.aud}`);
+  }
+
+  if (payload.iss !== `https://securetoken.google.com/${projectId}`) {
+    throw new Error("Invalid issuer");
+  }
+
+  if (payload.exp < now) {
+    throw new Error("Token has expired");
+  }
+
+  if (!payload.sub) {
+    throw new Error("Token sub claim is missing");
+  }
+
+  const keys = await getGooglePublicKeys();
+  const cert = keys[header.kid];
+  if (!cert) {
+    throw new Error("Public key not found for kid");
+  }
+
+  const verify = crypto.createVerify("SHA256");
+  verify.update(`${parts[0]}.${parts[1]}`);
+  const isValid = verify.verify(cert, parts[2], "base64url");
+  if (!isValid) {
+    throw new Error("Token signature verification failed");
+  }
+
+  return {
+    uid: payload.sub,
+    email: payload.email,
+    name: payload.name,
+    picture: payload.picture,
+    ...payload
+  };
+}
+
 
 dotenv.config();
 
@@ -268,7 +345,7 @@ app.post("/api/users/sync", async (req, res) => {
   
   const idToken = authHeader.split("Bearer ")[1];
   try {
-    const decodedToken = await getAuth().verifyIdToken(idToken);
+    const decodedToken = await verifyFirebaseIdToken(idToken);
     const userRef = db.collection("users").doc(decodedToken.uid);
     await userRef.set({
       email: decodedToken.email,
