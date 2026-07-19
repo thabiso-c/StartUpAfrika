@@ -55,6 +55,7 @@ const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
 // ── Editor Auth & Data ────────────────────────────────────────────────────────
 const EDITOR_EMAIL = "letsokothabiso@gmail.com";
+const EDITOR_PASSWORD = process.env.EDITOR_PASSWORD || "startupafrika";
 
 type ArticleStatus = "draft" | "published";
 interface Article {
@@ -79,11 +80,7 @@ const articles: Article[] = [];
 
 function requireEditorToken(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = req.headers["x-editor-token"] as string;
-  const expectedPassword = process.env.EDITOR_PASSWORD;
-  if (!expectedPassword) {
-    return res.status(500).json({ error: "Server configuration error" });
-  }
-  const validToken = crypto.createHmac("sha256", expectedPassword).update(EDITOR_EMAIL).digest("hex");
+  const validToken = crypto.createHmac("sha256", EDITOR_PASSWORD).update(EDITOR_EMAIL).digest("hex");
   
   if (!token || token !== validToken) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -124,24 +121,16 @@ const ai = process.env.GEMINI_API_KEY
 // ── Editor Auth Routes ───────────────────────────────────────────────────────
 app.post("/api/editor/login", (req, res) => {
   const { email, password } = req.body;
-  const expectedPassword = process.env.EDITOR_PASSWORD;
-  if (!expectedPassword) {
-    return res.status(500).json({ error: "EDITOR_PASSWORD environment variable is not set." });
-  }
-  if (email !== EDITOR_EMAIL || password !== expectedPassword) {
+  if (email !== EDITOR_EMAIL || password !== EDITOR_PASSWORD) {
     return res.status(401).json({ error: "Invalid credentials." });
   }
-  const token = crypto.createHmac("sha256", expectedPassword).update(EDITOR_EMAIL).digest("hex");
+  const token = crypto.createHmac("sha256", EDITOR_PASSWORD).update(EDITOR_EMAIL).digest("hex");
   res.json({ success: true, token });
 });
 
 app.post("/api/editor/verify", (req, res) => {
   const { token } = req.body;
-  const expectedPassword = process.env.EDITOR_PASSWORD;
-  if (!expectedPassword) {
-    return res.json({ valid: false });
-  }
-  const validToken = crypto.createHmac("sha256", expectedPassword).update(EDITOR_EMAIL).digest("hex");
+  const validToken = crypto.createHmac("sha256", EDITOR_PASSWORD).update(EDITOR_EMAIL).digest("hex");
   res.json({ valid: !!(token && token === validToken) });
 });
 
@@ -396,6 +385,16 @@ app.post("/api/generate-outreach", async (req, res) => {
     console.error("Gemini API Error:", error);
     res.status(500).json({ error: error.message || "Failed to generate outreach via Gemini" });
   }
+});
+
+// Global Error Handler
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("EXPRESS UNHANDLED ERROR:", err);
+  res.status(500).json({ 
+    error: "Internal Server Error", 
+    message: err.message || "An unexpected error occurred", 
+    stack: err.stack 
+  });
 });
 
 // Configure Vite or Static Assets serving
