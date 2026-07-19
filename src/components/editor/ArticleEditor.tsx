@@ -16,8 +16,10 @@ interface Article {
   tags: string[]; coverImage: string; body: string;
   status: "draft" | "published"; wordCount: number;
   createdAt: string; updatedAt: string;
+  coverHeight?: number;
+  coverPosition?: string;
 }
-interface Props { article: Article; token: string; onSave: (a: Article) => Promise<void>; onClose: () => void; }
+interface Props { article: Article; token: string; onSave: (a: Article) => Promise<void>; onClose: () => void; key?: any; }
 
 const EDITOR_HEADER = "x-editor-token";
 
@@ -42,6 +44,9 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
   const [uploadingCover, setUploadingCover] = useState(false);
   const [uploadingInline, setUploadingInline] = useState(false);
   const [selectedImg, setSelectedImg] = useState<HTMLImageElement | null>(null);
+  const [coverHeight, setCoverHeight] = useState<number>(article.coverHeight || 288);
+  const [coverPosition, setCoverPosition] = useState<string>(article.coverPosition || "center");
+  const [isCroppingCover, setIsCroppingCover] = useState(false);
   
   // Crop states
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -149,6 +154,7 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
       title: title || "Untitled Article",
       subtitle, founderName, startupName, location, foundedYear,
       tags, coverImage, body, status, wordCount,
+      coverHeight, coverPosition,
       updatedAt: new Date().toISOString(),
     };
     await onSave(payload);
@@ -217,13 +223,21 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
   };
 
   const openCropModal = (img: HTMLImageElement) => {
+    setIsCroppingCover(false);
     setCropTarget(img);
     setCrop(undefined);
     setCropModalOpen(true);
   };
 
+  const openCoverCrop = () => {
+    setIsCroppingCover(true);
+    setCropTarget(null);
+    setCrop(undefined);
+    setCropModalOpen(true);
+  };
+
   const handleCropSave = async () => {
-    if (!cropTarget || !crop || !storage || !cropImageRef.current) return;
+    if ((!isCroppingCover && !cropTarget) || !crop || !storage || !cropImageRef.current) return;
     setCropUploading(true);
     try {
       const image = cropImageRef.current;
@@ -242,12 +256,17 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
         crop.width, crop.height
       );
       const blob = await new Promise<Blob>((res, rej) => canvas.toBlob((b) => b ? res(b) : rej(), "image/jpeg", 0.95));
-      const storageRef = ref(storage, `editor/inline/cropped_${Date.now()}.jpg`);
+      const storageRef = ref(storage, isCroppingCover ? `editor/covers/cropped_${Date.now()}.jpg` : `editor/inline/cropped_${Date.now()}.jpg`);
       await uploadBytes(storageRef, blob);
       const url = await getDownloadURL(storageRef);
-      cropTarget.src = url;
+      if (isCroppingCover) {
+        setCoverImage(url);
+      } else if (cropTarget) {
+        cropTarget.src = url;
+      }
       setCropModalOpen(false);
       setCropTarget(null);
+      setIsCroppingCover(false);
     } catch (e) {
       console.error(e);
       alert("Failed to crop image.");
@@ -336,7 +355,17 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
         {previewMode ? (
           /* ── Preview Mode ── */
           <div className="max-w-3xl mx-auto px-8 py-12">
-            {coverImage && <img src={coverImage} alt="Cover" className="w-full h-72 object-cover rounded-2xl mb-8" />}
+            {coverImage && (
+              <img 
+                src={coverImage} 
+                alt="Cover" 
+                className="w-full rounded-2xl mb-8 object-cover" 
+                style={{ 
+                  height: `${coverHeight}px`, 
+                  objectPosition: coverPosition 
+                }} 
+              />
+            )}
             <div className="flex flex-wrap gap-2 mb-4">
               {tags.map((t) => <span key={t} className="text-xs bg-emerald-900/40 text-emerald-300 px-3 py-1 rounded-full">{t}</span>)}
             </div>
@@ -363,15 +392,64 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
             {/* Cover Image */}
             <div>
               {coverImage ? (
-                <div className="relative group rounded-2xl overflow-hidden">
-                  <img src={coverImage} alt="Cover" className="w-full h-72 object-cover" />
-                  <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-all">
-                    <button onClick={() => coverInputRef.current?.click()} className="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all">
-                      <Upload className="w-3.5 h-3.5" /> Change Cover
-                    </button>
-                    <button onClick={() => setCoverImage("")} className="bg-red-500/30 hover:bg-red-500/50 text-red-300 text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all">
-                      <X className="w-3.5 h-3.5" /> Remove
-                    </button>
+                <div className="space-y-3">
+                  <div className="relative group rounded-2xl overflow-hidden">
+                    <img 
+                      src={coverImage} 
+                      alt="Cover" 
+                      className="w-full object-cover transition-all" 
+                      style={{ 
+                        height: `${coverHeight}px`, 
+                        objectPosition: coverPosition 
+                      }}
+                    />
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-3 transition-all">
+                      <button onClick={() => coverInputRef.current?.click()} className="bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all">
+                        <Upload className="w-3.5 h-3.5" /> Change Cover
+                      </button>
+                      <button onClick={openCoverCrop} className="bg-purple-600/70 hover:bg-purple-600 text-white text-xs font-bold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all">
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 1v3m12-3v3m-2 4h4M2 16h4M16 22v-3M8 22v-3M8 12h12v8H8z" /><rect x="4" y="4" width="12" height="12" rx="2" /></svg> Crop Cover
+                      </button>
+                      <button onClick={() => setCoverImage("")} className="bg-red-500/30 hover:bg-red-500/50 text-red-300 text-xs font-semibold px-4 py-2 rounded-lg flex items-center gap-1.5 transition-all">
+                        <X className="w-3.5 h-3.5" /> Remove
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Cover Settings Panel */}
+                  <div className="bg-white/3 border border-white/8 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className="flex-1">
+                        <div className="flex justify-between text-[10px] text-white/40 uppercase tracking-wider mb-1">
+                          <span>Cover Height</span>
+                          <span className="font-mono text-emerald-400 font-bold">{coverHeight}px</span>
+                        </div>
+                        <input 
+                          type="range" 
+                          min="150" 
+                          max="600" 
+                          value={coverHeight} 
+                          onChange={(e) => setCoverHeight(Number(e.target.value))}
+                          className="w-full accent-emerald-500 bg-white/10 h-1 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider">Position</span>
+                      <div className="bg-white/5 border border-white/10 p-0.5 rounded-lg flex">
+                        {(['top', 'center', 'bottom'] as const).map((pos) => (
+                          <button
+                            key={pos}
+                            type="button"
+                            onClick={() => setCoverPosition(pos)}
+                            className={`text-xs px-2.5 py-1 rounded-md uppercase font-semibold transition-all ${coverPosition === pos ? "bg-emerald-600 text-white" : "text-white/40 hover:text-white"}`}
+                          >
+                            {pos}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
               ) : (

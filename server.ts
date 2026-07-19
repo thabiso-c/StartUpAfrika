@@ -7,20 +7,22 @@ import dotenv from "dotenv";
 import multer from "multer";
 import fs from "fs";
 import crypto from "crypto";
-import * as admin from "firebase-admin";
+import { initializeApp, getApps } from "firebase-admin/app";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
+import { getAuth } from "firebase-admin/auth";
 import { Resend } from "resend";
 
 dotenv.config();
 
 // Initialize Firebase Admin (assumes GOOGLE_APPLICATION_CREDENTIALS is set, or FIREBASE_PROJECT_ID)
-let db: admin.firestore.Firestore | null = null;
+let db: Firestore | null = null;
 try {
-  if (!admin.apps.length) {
-    admin.initializeApp({
+  if (!getApps().length) {
+    initializeApp({
       projectId: process.env.VITE_FIREBASE_PROJECT_ID || process.env.FIREBASE_PROJECT_ID || "startup-afrika"
     });
   }
-  db = admin.firestore();
+  db = getFirestore();
 } catch (error) {
   console.error("Firebase Admin initialization error:", error);
 }
@@ -65,6 +67,8 @@ interface Article {
   foundedYear: string;
   tags: string[];
   coverImage: string;
+  coverHeight?: number;
+  coverPosition?: string;
   body: string;
   status: ArticleStatus;
   wordCount: number;
@@ -152,13 +156,13 @@ app.get("/api/editor/articles", requireEditorToken, (_req, res) => {
 });
 
 app.post("/api/editor/articles", requireEditorToken, (req, res) => {
-  const { id, title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, body, status } = req.body;
+  const { id, title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, coverHeight, coverPosition, body, status } = req.body;
   const wordCount = body ? body.replace(/<[^>]+>/g, " ").split(/\s+/).filter(Boolean).length : 0;
   if (id) {
     const idx = articles.findIndex((a) => a.id === id);
     if (idx !== -1) {
       const oldStatus = articles[idx].status;
-      articles[idx] = { ...articles[idx], title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, body, status, wordCount, updatedAt: new Date().toISOString() };
+      articles[idx] = { ...articles[idx], title, subtitle, founderName, startupName, location, foundedYear, tags, coverImage, coverHeight, coverPosition, body, status, wordCount, updatedAt: new Date().toISOString() };
       
       if (oldStatus === "draft" && status === "published") {
         sendPublishEmail(title, subtitle);
@@ -176,6 +180,8 @@ app.post("/api/editor/articles", requireEditorToken, (req, res) => {
     foundedYear: foundedYear || "",
     tags: tags || [],
     coverImage: coverImage || "",
+    coverHeight: coverHeight !== undefined ? coverHeight : 288,
+    coverPosition: coverPosition || "center",
     body: body || "",
     status: status || "draft",
     wordCount,
@@ -273,7 +279,7 @@ app.post("/api/users/sync", async (req, res) => {
   
   const idToken = authHeader.split("Bearer ")[1];
   try {
-    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const decodedToken = await getAuth().verifyIdToken(idToken);
     const userRef = db.collection("users").doc(decodedToken.uid);
     await userRef.set({
       email: decodedToken.email,

@@ -13,6 +13,8 @@ interface Article {
   foundedYear: string;
   tags: string[];
   coverImage: string;
+  coverHeight?: number;
+  coverPosition?: string;
   body: string;
   status: "draft" | "published";
   wordCount: number;
@@ -53,7 +55,7 @@ export default function EditorDashboard({ token, onLogout }: Props) {
     const blank: Article = {
       id: "", title: "Untitled Article", subtitle: "", founderName: "",
       startupName: "", location: "", foundedYear: "", tags: [],
-      coverImage: "", body: "", status: "draft", wordCount: 0,
+      coverImage: "", coverHeight: 288, coverPosition: "center", body: "", status: "draft", wordCount: 0,
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
     };
     setActiveArticle(blank);
