@@ -1007,26 +1007,87 @@ async function fetchAndParaphraseNews() {
     index === self.findIndex((a: any) => a.url === article.url)
   ).slice(0, 4);
 
+  // Build a set of source URLs already processed (stored in articles as startupName+title combo)
+  // Use a stable hash of the URL as the deterministic article ID to enable true deduplication
+  const urlToId = (url: string) => {
+    const hash = require("crypto").createHash("sha256").update(url).digest("hex").slice(0, 16);
+    return `art_news_${hash}`;
+  };
+
+  // Helper: call Gemini with retry-with-backoff on 429
+  const callGeminiWithRetry = async (prompt: string, retries = 2): Promise<any> => {
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const aiResponse = await ai!.models.generateContent({
+          model: "gemini-2.0-flash-lite",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                newTitle: { type: Type.STRING },
+                paraphrasedBodyHtml: { type: Type.STRING },
+                tags: { type: Type.STRING },
+              },
+              required: ["newTitle", "paraphrasedBodyHtml", "tags"],
+            },
+          },
+        });
+        return JSON.parse(aiResponse.text?.trim() || "{}");
+      } catch (err: any) {
+        if (err?.status === 429 && attempt < retries) {
+          // Extract retry delay from error or use exponential backoff
+          const retryDelay = (err?.errorDetails?.find?.((d: any) => d.retryDelay)?.retryDelay || `${(attempt + 1) * 20}s`);
+          const waitMs = (parseInt(String(retryDelay)) || (attempt + 1) * 20) * 1000;
+          console.warn(`[News Task] Rate limited (429). Waiting ${waitMs / 1000}s before retry ${attempt + 1}...`);
+          await new Promise(resolve => setTimeout(resolve, waitMs));
+        } else {
+          throw err;
+        }
+      }
+    }
+  };
+
   const rewrittenArticles = [];
 
   if (unique.length > 0 && ai) {
     for (let i = 0; i < unique.length; i++) {
       const article = unique[i];
+
+      // --- DEDUPLICATION: skip if already in Firestore/local store by stable URL hash ---
+      const stableId = urlToId(article.url);
+      const alreadyExists = articles.some(a => a.id === stableId) ||
+        (db ? await db.collection("articles").doc(stableId).get().then(d => d.exists).catch(() => false) : false);
+
+      if (alreadyExists) {
+        console.log(`[News Task] Skipping already-processed article: ${article.title}`);
+        // Still add it to the news cache response using what we have
+        const existing = articles.find(a => a.id === stableId);
+        rewrittenArticles.push({
+          ...article,
+          title: existing?.title || article.title,
+          description: existing?.subtitle || article.description,
+          articleId: stableId,
+        });
+        continue;
+      }
+
       try {
         const pageRes = await fetch(article.url, {
            headers: { "User-Agent": "Mozilla/5.0" }
         });
         const html = await pageRes.text();
         const $ = cheerio.load(html);
-        
+
         $('script, style, nav, header, footer, iframe, noscript').remove();
         let fullText = '';
         $('p, h1, h2, h3, article').each((_, el) => {
           fullText += $(el).text() + '\n\n';
         });
-        
+
         if (fullText.length < 200) fullText = article.description || article.title;
-        fullText = fullText.substring(0, 15000);
+        fullText = fullText.substring(0, 12000); // reduced to save tokens
 
         const prompt = `
         You are Thabiso, the founder and editor of "Startup Afrika", a platform showcasing African tech innovation.
@@ -1043,28 +1104,10 @@ async function fetchAndParaphraseNews() {
         ${fullText}
         `;
 
-        const aiResponse = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt,
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                newTitle: { type: Type.STRING },
-                paraphrasedBodyHtml: { type: Type.STRING },
-                tags: { type: Type.STRING },
-              },
-              required: ["newTitle", "paraphrasedBodyHtml", "tags"],
-            },
-          },
-        });
-
-        const resultText = aiResponse.text?.trim() || "{}";
-        const aiResult = JSON.parse(resultText);
+        const aiResult = await callGeminiWithRetry(prompt);
 
         const startupAfrikaArticle: Article = {
-          id: `art_news_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 9)}`,
+          id: stableId,
           title: aiResult.newTitle || `Startup Afrika Featured: ${article.title}`,
           subtitle: (aiResult.paraphrasedBodyHtml || article.description).replace(/<[^>]*>?/gm, '').substring(0, 150) + "...",
           founderName: "Startup Afrika AI News",
@@ -1082,16 +1125,13 @@ async function fetchAndParaphraseNews() {
           updatedAt: new Date().toISOString(),
         };
 
-        const existingIndex = articles.findIndex(a => a.id === startupAfrikaArticle.id);
-        if (existingIndex === -1) {
-          articles.push(startupAfrikaArticle);
-          saveJsonArray(ARTICLES_FILE, articles);
-          if (db) {
-            try {
-              await db.collection("articles").doc(startupAfrikaArticle.id).set(startupAfrikaArticle);
-            } catch (err) {
-              console.error("[News Task] Firestore save error:", err);
-            }
+        articles.push(startupAfrikaArticle);
+        saveJsonArray(ARTICLES_FILE, articles);
+        if (db) {
+          try {
+            await db.collection("articles").doc(startupAfrikaArticle.id).set(startupAfrikaArticle);
+          } catch (err) {
+            console.error("[News Task] Firestore save error:", err);
           }
         }
 
@@ -1101,6 +1141,11 @@ async function fetchAndParaphraseNews() {
           description: startupAfrikaArticle.subtitle,
           articleId: startupAfrikaArticle.id,
         });
+
+        // Throttle: wait 3 seconds between Gemini calls to stay under rate limits
+        if (i < unique.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 3000));
+        }
 
       } catch (articleErr) {
         console.error(`[News Task] Error processing article ${article.url}:`, articleErr);
