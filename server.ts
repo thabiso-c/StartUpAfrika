@@ -959,7 +959,7 @@ app.post("/api/submissions", (req, res) => {
   res.json({ success: true, submission: newSubmission });
 });
 
-// News API Endpoint
+// News API Endpoint with AI Rewriting
 app.get("/api/news", async (req, res) => {
   try {
     const apiKey = process.env.NEWSAPI_KEY;
@@ -1017,7 +1017,69 @@ app.get("/api/news", async (req, res) => {
       new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
     );
 
-    res.json({ articles: unique.slice(0, 8) });
+    const articles = unique.slice(0, 8);
+
+    // If Gemini AI is available, rewrite articles to focus on young African founders and developers
+    if (ai && articles.length > 0) {
+      try {
+        const rewrittenArticles = await Promise.all(
+          articles.map(async (article) => {
+            try {
+              const prompt = `
+                Rewrite this news article for Startup Afrika, a platform that highlights young African founders, developers, and innovators. 
+                
+                Original title: "${article.title}"
+                Original description: "${article.description}"
+                
+                Requirements:
+                1. Rewrite the title to be engaging and focus on young African founders/developers (under 35) building innovative solutions
+                2. Rewrite the description (2-3 sentences) to emphasize:
+                   - Young African founders/developers leading the innovation
+                   - The technology/app/gadget being built
+                   - The sector (fintech, e-commerce, health, agriculture, mining, manufacturing, etc.)
+                   - The impact on Africa
+                3. Keep it concise, inspiring, and focused on African innovation
+                4. Do NOT mention the original source
+                5. Make it sound like an original Startup Afrika article
+                
+                Return JSON format:
+                {
+                  "title": "rewritten title",
+                  "description": "rewritten description"
+                }
+              `;
+
+              const response = await ai.models.generateContent({
+                model: "gemini-3.5-flash",
+                contents: prompt,
+                config: {
+                  responseMimeType: "application/json",
+                },
+              });
+
+              const text = response.text?.trim() || "{}";
+              const rewritten = JSON.parse(text);
+              
+              return {
+                ...article,
+                title: rewritten.title || article.title,
+                description: rewritten.description || article.description,
+              };
+            } catch (err) {
+              console.error("Error rewriting article:", err);
+              return article; // Return original if rewrite fails
+            }
+          })
+        );
+
+        res.json({ articles: rewrittenArticles });
+      } catch (error) {
+        console.error("Error rewriting articles with AI:", error);
+        res.json({ articles }); // Return original articles if AI rewrite fails
+      }
+    } else {
+      res.json({ articles });
+    }
   } catch (error) {
     console.error("Error fetching news:", error);
     res.json({ 

@@ -94,10 +94,13 @@ export default function NewsSection() {
         <div className="flex items-center gap-2 mb-8 pb-3 border-b border-gray-100">
           <Newspaper className="w-5 h-5 text-emerald-600" />
           <h3 className="font-sans font-bold text-gray-900 text-lg">
-            Latest African Tech & Startup News
+            Young African Founders & Innovators
           </h3>
           <TrendingUp className="w-4 h-4 text-emerald-500 ml-1" />
         </div>
+        <p className="text-sm text-gray-500 mb-6">
+          Highlighting young developers and founders building the future across Africa
+        </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {articles.map((article, index) => (
