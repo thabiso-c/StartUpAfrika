@@ -1010,7 +1010,7 @@ async function fetchAndParaphraseNews() {
   // Build a set of source URLs already processed (stored in articles as startupName+title combo)
   // Use a stable hash of the URL as the deterministic article ID to enable true deduplication
   const urlToId = (url: string) => {
-    const hash = require("crypto").createHash("sha256").update(url).digest("hex").slice(0, 16);
+    const hash = crypto.createHash("sha256").update(url).digest("hex").slice(0, 16);
     return `art_news_${hash}`;
   };
 
