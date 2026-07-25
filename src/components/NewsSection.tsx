@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Newspaper, TrendingUp } from "lucide-react";
+import { Newspaper, TrendingUp, ArrowRight } from "lucide-react";
 
 interface NewsArticle {
   title: string;
@@ -8,6 +8,7 @@ interface NewsArticle {
   source: string;
   publishedAt: string;
   imageUrl?: string;
+  articleId?: string;
 }
 
 export default function NewsSection() {
@@ -104,23 +105,24 @@ export default function NewsSection() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {articles.map((article, index) => (
-          <div
+          <a
             key={index}
-            className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-emerald-300 transition-all cursor-default"
+            href={article.articleId ? `/?article=${article.articleId}` : "#"}
+            className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-emerald-300 transition-all block"
           >
             {article.imageUrl && (
               <div className="h-32 overflow-hidden rounded-md mb-3 bg-gray-100">
                 <img 
                   src={article.imageUrl} 
                   alt={article.title}
-                  className="w-full h-full object-cover"
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
                   }}
                 />
               </div>
             )}
-            <h4 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2">
+            <h4 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2 group-hover:text-emerald-700 transition-colors">
               {article.title}
             </h4>
             <p className="text-xs text-gray-500 line-clamp-2 mb-2">
@@ -130,7 +132,10 @@ export default function NewsSection() {
               <span className="font-medium">Startup Afrika</span>
               <span>{formatDate(article.publishedAt)}</span>
             </div>
-          </div>
+            <div className="mt-2 flex items-center text-emerald-600 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+              Read full article <ArrowRight className="w-3 h-3 ml-1" />
+            </div>
+          </a>
         ))}
       </div>
     </div>

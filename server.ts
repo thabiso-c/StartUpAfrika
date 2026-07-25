@@ -1087,6 +1087,7 @@ app.get("/api/news", async (req, res) => {
             ...article,
             title: rewrittenTitle,
             description: rewrittenDesc,
+            articleId: startupAfrikaArticle.id,
           };
         });
 
