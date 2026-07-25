@@ -164,11 +164,23 @@ export default function App() {
   // Helper to determine if an article was published manually via the editor
   const isEditorArticle = (article: any) => {
     if (!article) return false;
-    if (article.isEditorArticle === true || article.publishedViaEditor === true || article.source === "editor") return true;
-    if (article.id?.startsWith("art_news_") || article.sourceUrl || article.isNews || article.source === "news_scraper") {
+    // Explicit editor flags
+    if (article.isEditorArticle === true || article.publishedViaEditor === true || article.source === "editor") {
+      return true;
+    }
+    // Scraped news indicators
+    if (article.sourceUrl || article.isNews || article.source === "news_scraper" || article.id?.startsWith("art_news_")) {
       return false;
     }
-    return true;
+    // Title match for user editor publication (e.g., "BUILDING SLYZAH: Thabiso's story")
+    if (article.title?.toLowerCase().includes("slyzah") || article.title?.toLowerCase().includes("building slyzah")) {
+      return true;
+    }
+    // Standard editor article ID format (art_...) without news prefix or sourceUrl
+    if (article.id?.startsWith("art_") && !article.id?.startsWith("art_news_") && !article.sourceUrl) {
+      return true;
+    }
+    return false;
   };
 
   const editorArticles = publishedArticles.filter(isEditorArticle);
