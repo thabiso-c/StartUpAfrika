@@ -28,8 +28,8 @@ export default function App() {
   const [featuredArticle, setFeaturedArticle] = useState<any>(null);
 
   const fetchPublishedArticles = async (showLoadingState = true) => {
-    const CACHE_KEY = "sa_articles_cache";
-    const CACHE_TS_KEY = "sa_articles_cache_ts";
+    const CACHE_KEY = "sa_articles_cache_v5";
+    const CACHE_TS_KEY = "sa_articles_cache_ts_v5";
     const STALE_MS = 5 * 60 * 1000; // 5 minutes
 
     let servedFromCache = false;
@@ -51,7 +51,7 @@ export default function App() {
 
     // 2. Fetch fresh data
     try {
-      const res = await fetch("/api/articles");
+      const res = await fetch("/api/articles", { cache: "no-store" });
       if (res.ok) {
         const data = await res.json();
         const sorted = data.sort((a: any, b: any) =>
@@ -158,6 +158,10 @@ export default function App() {
   // Helper to identify scraped news articles from RSS or AI news task
   const isScrapedNewsArticle = (article: any) => {
     if (!article) return false;
+    // Explicit editor articles are NEVER scraped news articles
+    if (article.isEditorArticle === true || article.publishedViaEditor === true || article.source === "editor") {
+      return false;
+    }
     if (article.isNews === true || article.source === "news_scraper") return true;
     if (article.id?.startsWith("art_news_")) return true;
     if (article.sourceUrl && String(article.sourceUrl).trim().length > 0) return true;
