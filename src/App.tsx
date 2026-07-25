@@ -27,25 +27,46 @@ export default function App() {
   const [loadingArticles, setLoadingArticles] = useState<boolean>(true);
   const [featuredArticle, setFeaturedArticle] = useState<any>(null);
 
-  const fetchPublishedArticles = async () => {
+  const fetchPublishedArticles = async (showLoadingState = true) => {
+    const CACHE_KEY = "sa_articles_cache";
+    const CACHE_TS_KEY = "sa_articles_cache_ts";
+    const STALE_MS = 5 * 60 * 1000; // 5 minutes
+
+    // 1. Paint instantly from localStorage cache
     try {
-      // Fetch articles immediately without waiting for sync
+      const cached = localStorage.getItem(CACHE_KEY);
+      const cachedTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || "0", 10);
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const sorted = parsed.sort((a: any, b: any) =>
+            new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+          );
+          setPublishedArticles(sorted);
+          setFeaturedArticle(sorted[0]);
+          if (showLoadingState) setLoadingArticles(false);
+          // If cache is fresh enough, skip the network call
+          if (Date.now() - cachedTs < STALE_MS) return;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Fetch fresh data in the background
+    try {
       const res = await fetch("/api/articles");
       if (res.ok) {
         const data = await res.json();
-        
-        // Sort by updatedAt or createdAt desc
-        const sorted = data.sort((a: any, b: any) => 
+        const sorted = data.sort((a: any, b: any) =>
           new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
         );
-        
-        // Set featured article immediately for fast display
         if (sorted.length > 0) {
           setFeaturedArticle(sorted[0]);
         }
-        
         setPublishedArticles(sorted);
-        
+        // Persist fresh data to localStorage
+        localStorage.setItem(CACHE_KEY, JSON.stringify(sorted));
+        localStorage.setItem(CACHE_TS_KEY, String(Date.now()));
+
         // Sync local articles in background (non-blocking)
         const cachedArticlesStr = localStorage.getItem("slyzah_custom_articles");
         if (cachedArticlesStr) {
@@ -69,6 +90,7 @@ export default function App() {
       setLoadingArticles(false);
     }
   };
+
 
   useEffect(() => {
     // Check if we have a persisted demo user first
@@ -133,14 +155,14 @@ export default function App() {
 
   useEffect(() => {
     fetchPublishedArticles();
-  }, [currentTab]); // re-fetch when coming back to explore or changing tabs
+  }, []); // fetch once on mount only — cache handles the rest
 
   const selectedInterview = [...publishedArticles, ...interviews].find((i) => i.id === selectedInterviewId);
 
-  // When a news article is selected but not found in publishedArticles, re-fetch
+  // When a news article is selected but not found in publishedArticles, re-fetch without showing spinner
   useEffect(() => {
     if (selectedInterviewId && !selectedInterview) {
-      fetchPublishedArticles();
+      fetchPublishedArticles(false);
     }
   }, [selectedInterviewId]);
 
@@ -152,13 +174,23 @@ export default function App() {
 
   const renderActiveView = () => {
     // If we have an interview selected, display the reader detailed view
-    if (selectedInterviewId && selectedInterview) {
-      return (
-        <InterviewDetail
-          interview={selectedInterview}
-          onBack={() => setSelectedInterviewId(null)}
-        />
-      );
+    if (selectedInterviewId) {
+      if (selectedInterview) {
+        return (
+          <InterviewDetail
+            interview={selectedInterview}
+            onBack={() => setSelectedInterviewId(null)}
+          />
+        );
+      } else {
+        // Show a loading state while fetching the article
+        return (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-emerald-600">
+            <div className="w-10 h-10 border-4 border-emerald-200 border-t-emerald-600 rounded-full animate-spin mb-4"></div>
+            <p className="font-semibold text-gray-600">Loading article...</p>
+          </div>
+        );
+      }
     }
 
     switch (currentTab) {

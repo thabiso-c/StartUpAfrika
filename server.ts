@@ -700,12 +700,25 @@ app.post("/api/articles/sync", async (req, res) => {
   res.json({ success: true, articles });
 });
 
+// Server-side cache for published articles (5-min TTL)
+let articlesCache: { timestamp: number; data: Article[] } = { timestamp: 0, data: [] };
+const ARTICLES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 app.get("/api/articles", async (req, res) => {
+  // Serve from cache if fresh
+  const now = Date.now();
+  if (now - articlesCache.timestamp < ARTICLES_CACHE_TTL && articlesCache.data.length > 0) {
+    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
+    return res.json(articlesCache.data);
+  }
+
   if (db) {
     try {
       const snapshot = await db.collection("articles").where("status", "==", "published").get();
       const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Article));
       fetched.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+      articlesCache = { timestamp: now, data: fetched };
+      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
       return res.json(fetched);
     } catch (error) {
       console.error("Firestore fetch published articles error, falling back:", error);
@@ -715,6 +728,8 @@ app.get("/api/articles", async (req, res) => {
   const published = articles
     .filter((a) => a.status === "published")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  articlesCache = { timestamp: now, data: published };
+  res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
   res.json(published);
 });
 app.get("/api/health", (req, res) => {
