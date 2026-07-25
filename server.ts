@@ -361,10 +361,25 @@ app.post("/api/editor/logout", (req, res) => {
 
 // ── Editor Articles Routes ────────────────────────────────────────────────────
 app.get("/api/editor/articles", requireEditorToken, async (_req, res) => {
+  const isStrictEditorArticle = (a: any) => {
+    if (!a) return false;
+    if (a.isNews === true || a.source === "news_scraper") return false;
+    if (a.id?.startsWith("art_news_")) return false;
+    if (a.isEditorArticle === true || a.source === "editor" || a.publishedViaEditor === true) return true;
+    if (a.id === "art_slyzah_building_thabiso" || a.id?.startsWith("art_editor_")) return true;
+    if (a.sourceUrl && String(a.sourceUrl).trim().length > 0) return false;
+    const founder = String(a.founderName || "").toLowerCase();
+    const startup = String(a.startupName || "").toLowerCase();
+    if (founder.includes("ai news") || startup.includes("ai news")) return false;
+    return true;
+  };
+
   if (db) {
     try {
       const snapshot = await db.collection("articles").get();
-      const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Article));
+      const fetched = snapshot.docs
+        .map(doc => ({ id: doc.id, ...doc.data() } as Article))
+        .filter(isStrictEditorArticle);
       fetched.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
       return res.json(fetched);
     } catch (error) {
@@ -372,7 +387,9 @@ app.get("/api/editor/articles", requireEditorToken, async (_req, res) => {
       db = null; // Disable Firestore dynamically on failure
     }
   }
-  res.json(articles.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()));
+  const filtered = articles.filter(isStrictEditorArticle);
+  filtered.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  res.json(filtered);
 });
 
 app.post("/api/editor/articles", requireEditorToken, async (req, res) => {

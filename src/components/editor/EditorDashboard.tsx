@@ -61,7 +61,18 @@ export default function EditorDashboard({ token, onLogout }: Props) {
         // Merge with local drafts/published to make sure everything is visible even if server recycled
         if (cachedArticlesStr) {
           try {
-            const cachedArticles = JSON.parse(cachedArticlesStr) as Article[];
+            const isStrictEditorArticle = (a: any) => {
+              if (!a) return false;
+              if (a.isNews === true || a.source === "news_scraper") return false;
+              if (a.id?.startsWith("art_news_")) return false;
+              if (a.sourceUrl && String(a.sourceUrl).trim().length > 0) return false;
+              const founder = String(a.founderName || "").toLowerCase();
+              const startup = String(a.startupName || "").toLowerCase();
+              if (founder.includes("ai news") || startup.includes("ai news")) return false;
+              return true;
+            };
+
+            const cachedArticles = (JSON.parse(cachedArticlesStr) as Article[]).filter(isStrictEditorArticle);
             const apiIds = new Set(fetchedArticles.map((a) => a.id));
             const uniqueCached = cachedArticles.filter((a) => !apiIds.has(a.id));
             if (uniqueCached.length > 0) {
