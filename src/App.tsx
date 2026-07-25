@@ -9,6 +9,7 @@ import OutreachGenerator from "./components/OutreachGenerator";
 import SubmitBlueprint from "./components/SubmitBlueprint";
 import AdminDashboard from "./components/AdminDashboard";
 import Footer from "./components/Footer";
+import NewsSection from "./components/NewsSection";
 import EditorGate from "./components/editor/EditorGate";
 import { interviews } from "./data/interviews";
 import { AlertCircle, HelpCircle, BookOpen } from "lucide-react";
@@ -167,6 +168,7 @@ export default function App() {
             <Hero 
               user={user} 
               featuredArticle={publishedArticles[0]}
+              previousArticles={publishedArticles.slice(1)}
               onSelect={() => publishedArticles[0] && setSelectedInterviewId(publishedArticles[0].id)}
               articlesLoading={loadingArticles}
             />
@@ -205,9 +207,11 @@ export default function App() {
                 )}
               </div>
             </div>
+
+            {/* News Section */}
+            <NewsSection />
           </div>
         );
-
       case "submit":
         return <SubmitBlueprint />;
 
