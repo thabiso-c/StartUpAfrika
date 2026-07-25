@@ -439,7 +439,7 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
 
       let emailResult = null;
       if (status === "published") {
-        emailResult = await sendPublishEmail(savedArticle);
+        emailResult = await sendPublishEmail(savedArticle, req);
       }
 
       return res.json({ success: true, article: savedArticle, emailResult });
@@ -457,7 +457,7 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
       
       let emailResult = null;
       if (status === "published") {
-        emailResult = await sendPublishEmail(articles[idx]);
+        emailResult = await sendPublishEmail(articles[idx], req);
       }
       saveJsonArray(ARTICLES_FILE, articles);
       return res.json({ success: true, article: articles[idx], emailResult });
@@ -469,7 +469,7 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
 
   let emailResult = null;
   if (status === "published") {
-    emailResult = await sendPublishEmail(newArticle);
+    emailResult = await sendPublishEmail(newArticle, req);
   }
   res.json({ success: true, article: newArticle, emailResult });
 });
@@ -478,110 +478,106 @@ function stripHtml(html: string): string {
   return html.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
 }
 
-function buildEmailHtml(article: Article): string {
+function buildEmailText(article: Article, articleUrl: string, baseUrl: string): string {
+  const { title, subtitle, founderName, startupName, body } = article;
+  const previewText = stripHtml(body).substring(0, 300);
+  const authorLine = founderName ? `By ${founderName}${startupName ? ` • ${startupName}` : ""}` : "";
+
+  return `${title}
+${subtitle ? `${subtitle}\n` : ""}${authorLine ? `${authorLine}\n` : ""}
+
+${previewText}…
+
+Read the full article:
+${articleUrl}
+
+---
+Startup Afrika — Stories from African founders
+${baseUrl}`;
+}
+
+function buildEmailHtml(article: Article, articleUrl: string, baseUrl: string): string {
   const { title, subtitle, founderName, startupName, coverImage, tags, body } = article;
-  const previewText = stripHtml(body).substring(0, 200);
+  const previewText = stripHtml(body).substring(0, 260);
   const tagsHtml = (tags || []).map((t: string) => 
-    `<span style="display:inline-block;background:rgba(5,150,105,0.15);color:#059669;font-size:12px;font-weight:600;padding:4px 12px;border-radius:999px;margin:0 4px 4px 0;letter-spacing:0.3px;">${t}</span>`
+    `<span style="display:inline-block;background:#ecfdf5;color:#047857;font-size:11px;font-weight:600;padding:3px 10px;border-radius:12px;margin:0 4px 4px 0;letter-spacing:0.2px;">${t}</span>`
   ).join("");
-  const articleUrl = `https://startup.afrika?article=${article.id}`;
 
   return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap');
-  </style>
+  <title>${title}</title>
 </head>
-<body style="margin:0;padding:0;background:#f9fafb;font-family:'Inter',Helvetica,Arial,sans-serif;">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:24px 16px;">
+<body style="margin:0;padding:0;background-color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f9fafb;padding:20px 12px;">
     <tr>
       <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;background:#ffffff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.08);">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:580px;background:#ffffff;border-radius:12px;border:1px solid #f3f4f6;overflow:hidden;">
           <!-- Header -->
           <tr>
-            <td style="padding:28px 32px 0;">
-              <table width="100%" cellpadding="0" cellspacing="0">
+            <td style="padding:24px 28px 16px;border-bottom:1px solid #f3f4f6;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
-                  <td style="font-size:14px;font-weight:700;color:#065f46;letter-spacing:1px;text-transform:uppercase;">Startup Afrika</td>
-                  <td align="right" style="font-size:12px;color:#9ca3af;">New Article</td>
+                  <td>
+                    <a href="${baseUrl}" style="font-size:15px;font-weight:800;color:#047857;text-decoration:none;letter-spacing:0.5px;text-transform:uppercase;">Startup Afrika</a>
+                  </td>
                 </tr>
               </table>
-              <div style="height:1px;background:#e5e7eb;margin:16px 0 0;"></div>
             </td>
           </tr>
-          <!-- Cover Image -->
-          ${coverImage ? `<tr>
-            <td style="padding:20px 0 0;">
-              <img src="${coverImage}" alt="${founderName || 'Article'}" style="width:100%;height:auto;max-height:360px;object-fit:cover;display:block;" />
-            </td>
-          </tr>` : `<tr>
-            <td style="padding:32px 32px 0;">
-              <table width="100%" cellpadding="0" cellspacing="0" style="background:linear-gradient(135deg,#0c3121,#064e3b);border-radius:12px;padding:48px 32px;">
-                <tr><td align="center" style="color:rgba(255,255,255,0.6);font-size:13px;font-weight:500;letter-spacing:0.5px;">📖 Startup Afrika</td></tr>
-              </table>
-            </td>
-          </tr>`}
-          <!-- Tags -->
-          ${tagsHtml ? `<tr>
-            <td style="padding:24px 32px 0;">${tagsHtml}</td>
-          </tr>` : ''}
-          <!-- Title -->
+
+          <!-- Content Padding Area -->
           <tr>
-            <td style="padding:${tagsHtml ? '8px' : '28px'} 32px 0;">
-              <h1 style="margin:0;font-size:28px;font-weight:800;color:#111827;line-height:1.2;letter-spacing:-0.3px;">${title}</h1>
-            </td>
-          </tr>
-          <!-- Subtitle -->
-          ${subtitle ? `<tr>
-            <td style="padding:12px 32px 0;">
-              <p style="margin:0;font-size:16px;color:#6b7280;line-height:1.5;">${subtitle}</p>
-            </td>
-          </tr>` : ''}
-          <!-- Founder Info -->
-          <tr>
-            <td style="padding:20px 32px 0;">
-              <table cellpadding="0" cellspacing="0">
+            <td style="padding:24px 28px;">
+              ${tagsHtml ? `<div style="margin-bottom:12px;">${tagsHtml}</div>` : ''}
+
+              <!-- Title (Strictly article title, no 'New Blueprint' prefix) -->
+              <h1 style="margin:0 0 8px 0;font-size:24px;font-weight:800;color:#111827;line-height:1.3;letter-spacing:-0.3px;">${title}</h1>
+
+              ${subtitle ? `<p style="margin:0 0 16px 0;font-size:15px;color:#4b5563;line-height:1.5;">${subtitle}</p>` : ''}
+
+              <!-- Author Info -->
+              <table cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:20px;">
                 <tr>
-                  <td width="44" style="width:44px;vertical-align:middle;">
-                    <table width="44" height="44" cellpadding="0" cellspacing="0" style="width:44px;height:44px;background:#047857;border-radius:50%;">
-                      <tr><td align="center" style="color:#fff;font-size:18px;font-weight:700;">${(founderName || 'S')?.charAt(0).toUpperCase()}</td></tr>
+                  <td width="38" style="width:38px;vertical-align:middle;">
+                    <table width="38" height="38" cellpadding="0" cellspacing="0" role="presentation" style="width:38px;height:38px;background:#047857;border-radius:50%;">
+                      <tr><td align="center" style="color:#ffffff;font-size:16px;font-weight:700;">${(founderName || 'S')?.charAt(0).toUpperCase()}</td></tr>
                     </table>
                   </td>
-                  <td style="padding-left:12px;vertical-align:middle;">
-                    <p style="margin:0;font-size:14px;font-weight:600;color:#374151;">${founderName || 'Startup Afrika'}</p>
-                    <p style="margin:2px 0 0;font-size:13px;color:#9ca3af;">${startupName || 'Featured Article'}</p>
+                  <td style="padding-left:10px;vertical-align:middle;">
+                    <div style="font-size:13px;font-weight:600;color:#1f2937;">${founderName || 'Startup Afrika'}</div>
+                    <div style="font-size:12px;color:#6b7280;">${startupName ? `${startupName} • ` : ''}Startup Afrika</div>
                   </td>
                 </tr>
               </table>
+
+              <!-- Cover Image Optimized for Ultra Fast Loading -->
+              ${coverImage ? `
+              <div style="margin:16px 0 20px;">
+                <a href="${articleUrl}" target="_blank" style="text-decoration:none;display:block;">
+                  <img src="${coverImage}" alt="${title}" width="524" height="262" loading="eager" fetchpriority="high" style="width:100%;max-width:524px;height:auto;display:block;border-radius:8px;border:0;outline:none;object-fit:cover;background-color:#f3f4f6;" />
+                </a>
+              </div>
+              ` : ''}
+
+              <!-- Preview Body -->
+              ${previewText ? `<p style="margin:0 0 24px 0;font-size:14px;color:#374151;line-height:1.6;">${previewText}…</p>` : ''}
+
+              <!-- Working CTA Button -->
+              <div>
+                <a href="${articleUrl}" target="_blank" style="display:inline-block;background:#047857;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;letter-spacing:0.2px;">Read Full Article →</a>
+              </div>
             </td>
           </tr>
-          <!-- Preview Body -->
-          ${previewText ? `<tr>
-            <td style="padding:20px 32px 0;">
-              <p style="margin:0;font-size:15px;color:#4b5563;line-height:1.7;">${previewText}…</p>
-            </td>
-          </tr>` : ''}
-          <!-- CTA Button -->
-          <tr>
-            <td style="padding:28px 32px 40px;">
-              <table cellpadding="0" cellspacing="0">
-                <tr>
-                  <td style="background:#065f46;border-radius:10px;padding:0;">
-                    <a href="${articleUrl}" target="_blank" style="display:inline-block;padding:14px 36px;font-size:14px;font-weight:700;color:#ffffff;text-decoration:none;letter-spacing:0.5px;text-transform:uppercase;">Read the Full Story →</a>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
+
           <!-- Footer -->
           <tr>
-            <td style="background:#f3f4f6;padding:24px 32px;">
-              <p style="margin:0;font-size:12px;color:#9ca3af;text-align:center;">
-                You received this email because you subscribed to Startup Afrika.<br>
-                <a href="https://startup.afrika" style="color:#065f46;text-decoration:underline;">Startup Afrika</a> — Stories from African founders
+            <td style="background-color:#f9fafb;padding:20px 28px;border-top:1px solid #f3f4f6;">
+              <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.5;text-align:center;">
+                You received this email because you subscribed to <a href="${baseUrl}" style="color:#047857;text-decoration:underline;">Startup Afrika</a>.<br>
+                Stories and insights from African founders.
               </p>
             </td>
           </tr>
@@ -593,9 +589,24 @@ function buildEmailHtml(article: Article): string {
 </html>`;
 }
 
-async function sendPublishEmail(article: Article) {
+async function sendPublishEmail(article: Article, req?: express.Request) {
   let allEmails: string[] = [];
   try {
+    // Determine working base URL from request or environment
+    let baseUrl = process.env.APP_URL || "";
+    if (!baseUrl && req) {
+      const host = req.get("host");
+      if (host) {
+        const proto = req.get("x-forwarded-proto") || req.protocol || "https";
+        baseUrl = `${proto}://${host}`;
+      }
+    }
+    if (!baseUrl) {
+      baseUrl = "https://startupafrika.co.za";
+    }
+
+    const articleUrl = `${baseUrl}?article=${article.id}`;
+
     if (db) {
       const snapshot = await db.collection("subscribers").get();
       const emails = snapshot.docs.map(doc => doc.data().email).filter(Boolean);
@@ -622,21 +633,28 @@ async function sendPublishEmail(article: Article) {
     if (allEmails.length > 0) {
       if (resend && process.env.RESEND_API_KEY) {
         try {
-          const emailHtml = buildEmailHtml(article);
+          const emailHtml = buildEmailHtml(article, articleUrl, baseUrl);
+          const emailText = buildEmailText(article, articleUrl, baseUrl);
+          
           await resend.emails.send({
             from: 'Startup Afrika <newsletter@startupafrika.co.za>',
             to: allEmails.slice(0, 50),
-            subject: `New Article: ${article.title}`,
-            html: emailHtml
+            subject: article.title, // Pure article title (removed "New Blueprint" prefix)
+            text: emailText,
+            html: emailHtml,
+            headers: {
+              'List-Unsubscribe': `<${baseUrl}>`,
+              'X-Entity-Ref-ID': article.id
+            }
           });
           isSimulated = false;
           sent = true;
-          console.log(`Beautiful announcement email sent to ${Math.min(allEmails.length, 50)} subscribers.`);
+          console.log(`Announcement email sent to ${Math.min(allEmails.length, 50)} subscribers with link: ${articleUrl}`);
         } catch (err) {
           console.error("Resend API failed, falling back to simulation log. Error:", err);
         }
       } else {
-        console.log(`[SIMULATION] Announcement email sent to subscribers:`, allEmails);
+        console.log(`[SIMULATION] Announcement email sent to subscribers (${allEmails.length}):`, articleUrl);
         sent = true;
       }
       
@@ -646,6 +664,7 @@ async function sendPublishEmail(article: Article) {
         id: `email_log_${Date.now()}`,
         title: article.title,
         subtitle: article.subtitle,
+        articleUrl,
         emailsCount: allEmails.length,
         emails: allEmails,
         sentAt: new Date().toISOString(),
@@ -659,6 +678,7 @@ async function sendPublishEmail(article: Article) {
       sent,
       count: allEmails.length,
       emails: allEmails,
+      articleUrl,
       isSimulated
     };
   } catch (error) {

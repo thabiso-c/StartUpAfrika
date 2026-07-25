@@ -254,37 +254,6 @@ export default function App() {
               articlesLoading={loadingArticles}
             />
 
-            {/* Main grid feed */}
-            <div className="max-w-6xl mx-auto px-4 py-16">
-              <div className="flex items-center gap-2 mb-8 pb-3 border-b border-gray-100">
-                <BookOpen className="w-5 h-5 text-emerald-600" />
-                <h3 className="font-sans font-bold text-gray-900 text-lg">
-                  Latest Founder Stories
-                </h3>
-              </div>
-
-              {/* Vertical list feed */}
-              <div className="flex flex-col divide-y divide-gray-100" id="interviews-feed">
-                {loadingArticles ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">
-                    Loading latest stories…
-                  </div>
-                ) : otherArticles.length > 0 ? (
-                  otherArticles.map((interview) => (
-                    <InterviewCard
-                      key={interview.id}
-                      interview={interview}
-                      onSelect={() => setSelectedInterviewId(interview.id)}
-                    />
-                  ))
-                ) : (
-                  <div className="text-center py-12 text-gray-400 text-sm">
-                    No other founder stories available yet.
-                  </div>
-                )}
-              </div>
-            </div>
-
             {/* News Section */}
             <NewsSection onSelectArticle={(id) => setSelectedInterviewId(id)} />
           </div>
