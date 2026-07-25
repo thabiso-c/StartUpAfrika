@@ -1051,9 +1051,8 @@ app.get("/api/news", async (req, res) => {
           // Rewrite title to focus on African innovation
           const rewrittenTitle = `African ${sector} Innovation: Young Founders and Developers Building the Future Across the Continent`;
           
-          // Rewrite description to focus on young African founders
-          const shortDesc = originalDesc.substring(0, 250).replace(/<[^>]+>/g, '').trim();
-          const rewrittenDesc = `A new generation of young African founders and developers is transforming the continent through innovative ${sector.toLowerCase()} solutions. ${shortDesc} This highlights the growing tech ecosystem across Africa, where young entrepreneurs under 35 are building world-class solutions that address local challenges and create global impact. From fintech to health tech, e-commerce to agriculture, these young innovators are putting Africa on the global tech map.`;
+          // Rewrite description to focus on young African founders (clean, no original content)
+          const rewrittenDesc = `A new generation of young African founders and developers is transforming the continent through innovative ${sector.toLowerCase()} solutions. This article highlights the growing tech ecosystem across Africa, where young entrepreneurs under 35 are building world-class solutions that address local challenges and create global impact. From fintech to health tech, e-commerce to agriculture, these young innovators are putting Africa on the global tech map.`;
           
           // Create a proper Startup Afrika article
           const startupAfrikaArticle: Article = {
