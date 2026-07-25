@@ -1,4 +1,5 @@
 import express from "express";
+import * as cheerio from "cheerio";
 import path from "path";
 import { fileURLToPath } from "url";
 // Vite will be dynamically imported locally
@@ -959,152 +960,166 @@ app.post("/api/submissions", (req, res) => {
   res.json({ success: true, submission: newSubmission });
 });
 
-// News API Endpoint with AI Rewriting
-app.get("/api/news", async (req, res) => {
-  try {
-    const apiKey = process.env.NEWSAPI_KEY;
-    
-    if (!apiKey) {
-      return res.json({ 
-        error: "News API key not configured",
-        articles: []
-      });
-    }
+let newsCache: { timestamp: number; articles: any[] } = { timestamp: 0, articles: [] };
+const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-    // Fetch African tech, startup, and fintech news
-    const techResponse = await fetch(
-      `https://newsapi.org/v2/everything?q=Africa+technology+startup+fintech&sortBy=publishedAt&pageSize=6&apiKey=${apiKey}`
-    );
+async function fetchAndParaphraseNews() {
+  console.log("[News Task] Starting hourly news fetch & paraphrase...");
+  const apiKey = process.env.GNEWS_API_KEY || process.env.NEWSAPI_KEY;
+  if (!apiKey) {
+    console.error("[News Task] API key not configured. Please add GNEWS_API_KEY in .env");
+    return [];
+  }
 
-    // Fetch African AI news
-    const aiResponse = await fetch(
-      `https://newsapi.org/v2/everything?q=Africa+AI+artificial+intelligence+machine+learning&sortBy=publishedAt&pageSize=4&apiKey=${apiKey}`
-    );
+  const apiUrl = process.env.GNEWS_API_KEY
+    ? `https://gnews.io/api/v4/search?q=(Africa AND (tech OR startup OR fintech OR AI))&lang=en&max=4&apikey=${apiKey}`
+    : `https://newsapi.org/v2/everything?q=Africa+technology+startup+fintech&sortBy=publishedAt&pageSize=4&apiKey=${apiKey}`;
 
-    if (!techResponse.ok || !aiResponse.ok) {
-      throw new Error("Failed to fetch news from API");
-    }
+  const newsResponse = await fetch(apiUrl);
+  if (!newsResponse.ok) throw new Error("Failed to fetch news from API");
 
-    const techData = await techResponse.json();
-    const aiData = await aiResponse.json();
+  const newsData = await newsResponse.json();
+  const sourceArticles = newsData.articles || [];
 
-    const combined = [
-      ...(techData.articles || []).map((a: any) => ({
-        title: a.title,
-        description: a.description || "",
-        url: a.url,
-        source: a.source?.name || "Unknown",
-        publishedAt: a.publishedAt,
-        imageUrl: a.urlToImage,
-      })),
-      ...(aiData.articles || []).map((a: any) => ({
-        title: a.title,
-        description: a.description || "",
-        url: a.url,
-        source: a.source?.name || "Unknown",
-        publishedAt: a.publishedAt,
-        imageUrl: a.urlToImage,
-      })),
-    ];
+  const unique = sourceArticles.map((a: any) => ({
+    title: a.title,
+    description: a.description || "",
+    url: a.url,
+    source: a.source?.name || "Unknown",
+    publishedAt: a.publishedAt,
+    imageUrl: a.urlToImage || a.image,
+  })).filter((article: any, index: number, self: any[]) =>
+    index === self.findIndex((a: any) => a.url === article.url)
+  ).slice(0, 4);
 
-    // Remove duplicates by URL
-    const unique = combined.filter((article, index, self) =>
-      index === self.findIndex((a) => a.url === article.url)
-    );
+  const rewrittenArticles = [];
 
-    // Sort by date
-    unique.sort((a, b) => 
-      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-    );
-
-    const newsArticles = unique.slice(0, 8);
-
-    // Rewrite articles to focus on African innovation (rule-based, no AI required)
-    if (newsArticles.length > 0) {
+  if (unique.length > 0 && ai) {
+    for (let i = 0; i < unique.length; i++) {
+      const article = unique[i];
       try {
-        console.log(`Rewriting ${newsArticles.length} articles for African innovation focus...`);
-        const rewrittenArticles = newsArticles.map((article, index) => {
-          // Always rewrite the title and description
-          const originalTitle = article.title;
-          const originalDesc = article.description || "";
-          
-          // Extract sector from content
-          let sector = "Technology";
-          const content = (originalTitle + " " + originalDesc).toLowerCase();
-          
-          if (content.includes('fintech') || content.includes('payment') || content.includes('banking') || content.includes('stablecoin')) {
-            sector = "Fintech";
-          } else if (content.includes('health') || content.includes('medical') || content.includes('healthcare')) {
-            sector = "Health Tech";
-          } else if (content.includes('e-commerce') || content.includes('ecommerce') || content.includes('retail')) {
-            sector = "E-commerce";
-          } else if (content.includes('agriculture') || content.includes('agritech')) {
-            sector = "Agriculture Tech";
-          } else if (content.includes('mining') || content.includes('mineral')) {
-            sector = "Mining Tech";
-          } else if (content.includes('manufacturing') || content.includes('industrial')) {
-            sector = "Manufacturing Tech";
-          } else if (content.includes('ai') || content.includes('artificial intelligence') || content.includes('machine learning')) {
-            sector = "AI & Machine Learning";
-          }
-          
-          // Create unique title based on original content
-          const titleWords = originalTitle.split(' ').slice(0, 6).join(' ');
-          const rewrittenTitle = `African ${sector} Spotlight: ${titleWords} - Empowering Young Founders`;
-          
-          // Rewrite description to focus on young African founders (clean, no original content)
-          const rewrittenDesc = `Young African founders and developers are making waves in ${sector.toLowerCase()}. This article showcases how entrepreneurs under 35 are building innovative solutions that address local challenges and put Africa on the global tech map. From startups to scale-ups, the next generation of African innovators is transforming industries across the continent.`;
-          
-          // Create a proper Startup Afrika article
-          const startupAfrikaArticle: Article = {
-            id: `art_news_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 9)}`,
-            title: rewrittenTitle,
-            subtitle: rewrittenDesc,
-            founderName: "",
-            startupName: "",
-            location: "Africa",
-            foundedYear: "",
-            tags: [sector, "Young Founders", "African Innovation"].filter(Boolean),
-            coverImage: article.imageUrl || "",
-            coverHeight: 288,
-            coverPosition: "center",
-            body: `<p>${rewrittenDesc}</p><p><em>This article is part of our series highlighting young African founders and developers building innovative solutions across the continent.</em></p>`,
-            status: "published",
-            wordCount: rewrittenDesc.split(/\s+/).filter(Boolean).length,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          };
+        const pageRes = await fetch(article.url, {
+           headers: { "User-Agent": "Mozilla/5.0" }
+        });
+        const html = await pageRes.text();
+        const $ = cheerio.load(html);
+        
+        $('script, style, nav, header, footer, iframe, noscript').remove();
+        let fullText = '';
+        $('p, h1, h2, h3, article').each((_, el) => {
+          fullText += $(el).text() + '\n\n';
+        });
+        
+        if (fullText.length < 200) fullText = article.description || article.title;
+        fullText = fullText.substring(0, 15000);
 
-          // Save to the global articles array
-          const existingIndex = articles.findIndex(a => a.id === startupAfrikaArticle.id);
-          if (existingIndex === -1) {
-            articles.push(startupAfrikaArticle);
-            saveJsonArray(ARTICLES_FILE, articles);
-            console.log(`✓ Saved: ${rewrittenTitle.substring(0, 60)}...`);
-          }
+        const prompt = `
+        You are Thabiso, the founder and editor of "Startup Afrika", a platform showcasing African tech innovation.
+        I will provide you with the raw scraped text of a news article about African technology, startups, or AI.
+        
+        Your task:
+        1. Rewrite the headline to be catchy, engaging, and aligned with Startup Afrika's tone. (Return as plain text, no quotes).
+        2. Paraphrase the ENTIRE article content to create a cohesive, standalone article for our platform. Focus on the innovation, the founders, and the impact on Africa.
+        3. Format the paraphrased body strictly as HTML (using <p>, <strong>, <h3> etc.) so it looks great on a web page. DO NOT include <html> or <body> tags, just the inner content.
+        4. Also generate 2-3 relevant tags (e.g., "Fintech", "AI", "Young Founders") in a comma-separated string.
+        
+        Original Title: ${article.title}
+        Original Content:
+        ${fullText}
+        `;
 
-          return {
-            ...article,
-            title: rewrittenTitle,
-            description: rewrittenDesc,
-            articleId: startupAfrikaArticle.id,
-          };
+        const aiResponse = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                newTitle: { type: Type.STRING },
+                paraphrasedBodyHtml: { type: Type.STRING },
+                tags: { type: Type.STRING },
+              },
+              required: ["newTitle", "paraphrasedBodyHtml", "tags"],
+            },
+          },
         });
 
-        console.log(`✓ Successfully rewrote and saved ${rewrittenArticles.length} articles`);
-        res.json({ articles: rewrittenArticles });
-      } catch (error) {
-        console.error("Error rewriting articles:", error);
-        res.json({ articles: newsArticles });
+        const resultText = aiResponse.text?.trim() || "{}";
+        const aiResult = JSON.parse(resultText);
+
+        const startupAfrikaArticle: Article = {
+          id: `art_news_${Date.now()}_${i}_${Math.random().toString(36).slice(2, 9)}`,
+          title: aiResult.newTitle || `Startup Afrika Featured: ${article.title}`,
+          subtitle: (aiResult.paraphrasedBodyHtml || article.description).replace(/<[^>]*>?/gm, '').substring(0, 150) + "...",
+          founderName: "Startup Afrika AI News",
+          startupName: article.source,
+          location: "Africa",
+          foundedYear: new Date().getFullYear().toString(),
+          tags: aiResult.tags ? aiResult.tags.split(',').map((t: string) => t.trim()) : ["African Tech"],
+          coverImage: article.imageUrl || "",
+          coverHeight: 288,
+          coverPosition: "center",
+          body: aiResult.paraphrasedBodyHtml || `<p>${article.description}</p>`,
+          status: "published",
+          wordCount: (aiResult.paraphrasedBodyHtml || "").split(/\s+/).filter(Boolean).length,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+
+        const existingIndex = articles.findIndex(a => a.id === startupAfrikaArticle.id);
+        if (existingIndex === -1) {
+          articles.push(startupAfrikaArticle);
+          saveJsonArray(ARTICLES_FILE, articles);
+        }
+
+        rewrittenArticles.push({
+          ...article,
+          title: startupAfrikaArticle.title,
+          description: startupAfrikaArticle.subtitle,
+          articleId: startupAfrikaArticle.id,
+        });
+
+      } catch (articleErr) {
+        console.error(`[News Task] Error processing article ${article.url}:`, articleErr);
+        rewrittenArticles.push(article);
       }
-    } else {
-      res.json({ articles: newsArticles });
     }
+    
+    newsCache = { timestamp: Date.now(), articles: rewrittenArticles };
+    console.log(`[News Task] Successfully processed ${rewrittenArticles.length} articles.`);
+    return rewrittenArticles;
+  }
+  
+  return unique;
+}
+
+// Start the hourly recurring background task
+setInterval(async () => {
+  try {
+    await fetchAndParaphraseNews();
+  } catch (err) {
+    console.error("[News Task] Background fetch failed:", err);
+  }
+}, CACHE_TTL);
+
+// News API Endpoint
+app.get("/api/news", async (req, res) => {
+  try {
+    const now = Date.now();
+    if (now - newsCache.timestamp < CACHE_TTL && newsCache.articles.length > 0) {
+      console.log("Serving news from cache...");
+      return res.json({ articles: newsCache.articles });
+    }
+
+    // Force a fetch if cache is empty or expired
+    const newArticles = await fetchAndParaphraseNews();
+    res.json({ articles: newArticles });
   } catch (error) {
-    console.error("Error fetching news:", error);
+    console.error("Error fetching news on request:", error);
     res.json({ 
       error: "Unable to load news at this time",
-      articles: []
+      articles: newsCache.articles // fallback to stale cache if any
     });
   }
 });
