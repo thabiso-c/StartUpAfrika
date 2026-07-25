@@ -1071,6 +1071,13 @@ async function fetchAndParaphraseNews() {
         if (existingIndex === -1) {
           articles.push(startupAfrikaArticle);
           saveJsonArray(ARTICLES_FILE, articles);
+          if (db) {
+            try {
+              await db.collection("articles").doc(startupAfrikaArticle.id).set(startupAfrikaArticle);
+            } catch (err) {
+              console.error("[News Task] Firestore save error:", err);
+            }
+          }
         }
 
         rewrittenArticles.push({
