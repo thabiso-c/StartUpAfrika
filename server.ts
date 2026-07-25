@@ -1036,6 +1036,18 @@ async function fetchAndParaphraseNews() {
         });
         return JSON.parse(aiResponse.text?.trim() || "{}");
       } catch (err: any) {
+        const errMsg = String(err?.message || "").toLowerCase();
+        const errDetails = JSON.stringify(err?.errorDetails || err?.details || "");
+        const isDailyExhausted = errMsg.includes("limit: 0") || errDetails.includes("limit: 0");
+
+        if (err?.status === 429 && isDailyExhausted) {
+          console.warn("[News Task] Daily Gemini quota completely exhausted. Aborting retry.");
+          const quotaErr: any = new Error("GEMINI_QUOTA_EXHAUSTED");
+          quotaErr.status = 429;
+          quotaErr.isQuotaExhausted = true;
+          throw quotaErr;
+        }
+
         if (err?.status === 429 && attempt < retries) {
           // Extract retry delay from error or use exponential backoff
           const retryDelay = (err?.errorDetails?.find?.((d: any) => d.retryDelay)?.retryDelay || `${(attempt + 1) * 20}s`);
@@ -1057,23 +1069,32 @@ async function fetchAndParaphraseNews() {
 
       // --- DEDUPLICATION: check Firestore first (survives cold starts), then in-memory ---
       const stableId = urlToId(article.url);
-      let alreadyExists = articles.some(a => a.id === stableId);
+      let existingData = articles.find(a => a.id === stableId || (a as any).sourceUrl === article.url || (a as any).url === article.url) as any;
+      let alreadyExists = !!existingData;
+
       if (!alreadyExists && db) {
         try {
           const docSnap = await db.collection("articles").doc(stableId).get();
-          alreadyExists = docSnap.exists;
+          if (docSnap.exists) {
+            alreadyExists = true;
+            existingData = docSnap.data();
+          } else {
+            const querySnap = await db.collection("articles").where("sourceUrl", "==", article.url).limit(1).get();
+            if (!querySnap.empty) {
+              alreadyExists = true;
+              existingData = querySnap.docs[0].data();
+            }
+          }
         } catch (_) {}
       }
 
       if (alreadyExists) {
         console.log(`[News Task] Skipping already-processed article: ${article.title}`);
-        // Still add it to the news cache response using what we have
-        const existing = articles.find(a => a.id === stableId);
         rewrittenArticles.push({
           ...article,
-          title: existing?.title || article.title,
-          description: existing?.subtitle || article.description,
-          articleId: stableId,
+          title: existingData?.title || article.title,
+          description: existingData?.subtitle || article.description,
+          articleId: existingData?.id || stableId,
         });
         continue;
       }
@@ -1111,7 +1132,7 @@ async function fetchAndParaphraseNews() {
 
         const aiResult = await callGeminiWithRetry(prompt);
 
-        const startupAfrikaArticle: Article = {
+        const startupAfrikaArticle: Article & { sourceUrl?: string } = {
           id: stableId,
           title: aiResult.newTitle || `Startup Afrika Featured: ${article.title}`,
           subtitle: (aiResult.paraphrasedBodyHtml || article.description).replace(/<[^>]*>?/gm, '').substring(0, 150) + "...",
@@ -1128,6 +1149,7 @@ async function fetchAndParaphraseNews() {
           wordCount: (aiResult.paraphrasedBodyHtml || "").split(/\s+/).filter(Boolean).length,
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
+          sourceUrl: article.url,
         };
 
         articles.push(startupAfrikaArticle);
@@ -1152,8 +1174,12 @@ async function fetchAndParaphraseNews() {
           await new Promise(resolve => setTimeout(resolve, 3000));
         }
 
-      } catch (articleErr) {
-        console.error(`[News Task] Error processing article ${article.url}:`, articleErr);
+      } catch (articleErr: any) {
+        console.error(`[News Task] Error processing article ${article.url}:`, articleErr?.message || articleErr);
+        if (articleErr?.isQuotaExhausted || articleErr?.status === 429) {
+          console.warn("[News Task] Quota limit reached during batch. Stopping batch processing.");
+          break;
+        }
         rewrittenArticles.push(article);
       }
     }
