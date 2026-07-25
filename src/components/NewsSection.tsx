@@ -126,6 +126,7 @@ export default function NewsSection({ onSelectArticle }: NewsSectionProps) {
                 <img 
                   src={article.imageUrl} 
                   alt={article.title}
+                  referrerPolicy="no-referrer"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
