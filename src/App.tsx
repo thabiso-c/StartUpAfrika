@@ -37,7 +37,6 @@ export default function App() {
     // 1. Paint instantly from localStorage cache
     try {
       const cached = localStorage.getItem(CACHE_KEY);
-      const cachedTs = parseInt(localStorage.getItem(CACHE_TS_KEY) || "0", 10);
       if (cached) {
         const parsed = JSON.parse(cached);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -45,16 +44,12 @@ export default function App() {
             new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
           );
           setPublishedArticles(sorted);
-          setFeaturedArticle(sorted[0]);
           setLoadingArticles(false); // always stop spinner from cache
-          servedFromCache = true;
-          // If cache is fresh enough, skip the network call entirely
-          if (Date.now() - cachedTs < STALE_MS) return;
         }
       }
     } catch (_) {}
 
-    // 2. Fetch fresh data (silently if cache already shown, with spinner if not)
+    // 2. Fetch fresh data
     try {
       const res = await fetch("/api/articles");
       if (res.ok) {
@@ -62,7 +57,6 @@ export default function App() {
         const sorted = data.sort((a: any, b: any) =>
           new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
         );
-        if (sorted.length > 0) setFeaturedArticle(sorted[0]);
         setPublishedArticles(sorted);
         // Persist fresh data to localStorage
         localStorage.setItem(CACHE_KEY, JSON.stringify(sorted));
@@ -161,19 +155,23 @@ export default function App() {
 
   const selectedInterview = [...publishedArticles, ...interviews].find((i) => i.id === selectedInterviewId);
 
+  // Helper to identify scraped news articles from RSS or AI news task
+  const isScrapedNewsArticle = (article: any) => {
+    if (!article) return false;
+    if (article.isNews === true || article.source === "news_scraper") return true;
+    if (article.id?.startsWith("art_news_")) return true;
+    if (article.sourceUrl && String(article.sourceUrl).trim().length > 0) return true;
+    if (article.founderName === "Startup Afrika AI News" || String(article.founderName || "").includes("AI News")) return true;
+    if (article.startupName === "Startup Afrika AI News" || String(article.startupName || "").includes("AI News")) return true;
+    return false;
+  };
+
   // Helper to determine if an article was published manually via the editor
   const isEditorArticle = (article: any) => {
     if (!article) return false;
     
-    // Scraped news indicators (MUST come first to exclude AI scraped articles)
-    if (
-      article.founderName === "Startup Afrika AI News" ||
-      article.founderName?.includes("AI News") ||
-      article.isNews === true ||
-      article.source === "news_scraper" ||
-      article.sourceUrl ||
-      article.id?.startsWith("art_news_")
-    ) {
+    // Scraped news articles are strictly excluded from editor articles
+    if (isScrapedNewsArticle(article)) {
       return false;
     }
 
@@ -182,17 +180,19 @@ export default function App() {
       return true;
     }
 
-    // Title match for user editor publication (e.g., "BUILDING SLYZAH: Thabiso's story")
-    if (article.title?.toLowerCase().includes("slyzah") || article.title?.toLowerCase().includes("building slyzah")) {
+    // Title match for user editor publication
+    const titleLower = (article.title || "").toLowerCase();
+    if (titleLower.includes("slyzah") || titleLower.includes("building slyzah")) {
       return true;
     }
 
-    // Standard editor article ID format (art_...) without news prefix, sourceUrl, or AI News founder
-    if (article.id?.startsWith("art_") && !article.id?.startsWith("art_news_") && !article.sourceUrl && article.founderName !== "Startup Afrika AI News") {
+    // Standard editor article ID format (art_...) without news prefix
+    if (article.id?.startsWith("art_") && !article.id?.startsWith("art_news_")) {
       return true;
     }
 
-    return false;
+    // Default: if it wasn't a scraped news article, treat it as an editor article
+    return true;
   };
 
   const editorArticles = publishedArticles.filter(isEditorArticle);

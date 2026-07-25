@@ -249,13 +249,50 @@ interface Article {
   wordCount: number;
   createdAt: string;
   updatedAt: string;
+  isEditorArticle?: boolean;
+  source?: string;
 }
 
-const DEFAULT_ARTICLES: Article[] = [];
+const SLYZAH_ARTICLE: Article = {
+  id: "art_slyzah_building_thabiso",
+  title: "BUILDING SLYZAH: Thabiso's story",
+  subtitle: "How Thabiso built Slyzah and launched Startup Afrika to chronicle the real blueprints of African tech founders.",
+  founderName: "Thabiso",
+  startupName: "Slyzah / Startup Afrika",
+  location: "Johannesburg, South Africa",
+  foundedYear: "2024",
+  tags: ["Slyzah", "Startup Afrika", "Founders", "Tech", "South Africa"],
+  coverImage: "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80",
+  coverHeight: 288,
+  coverPosition: "center",
+  body: `
+    <h2>The Spark Behind Slyzah</h2>
+    <p>Slyzah was born out of a desire to create powerful, modern digital platforms for African creators, developers, and entrepreneurs. During the initial development phase, it became clear that while African tech innovation was exploding, the authentic, unfiltered blueprints of how these startups were actually built remained undocumented.</p>
+    
+    <h2>Launching Startup Afrika</h2>
+    <p>To bridge this gap, Startup Afrika was created as a dedicated publication and media channel. Through structured Q&As, code breakdowns, and payment gateway insights, Startup Afrika gives founders a direct voice to share their engineering choices, growth trajectories, and hard-earned lessons.</p>
+
+    <h2>The Blueprint & Future Vision</h2>
+    <p>From local payment integrations like Paystack and Ozow to scalable cloud architectures, building in Africa requires unique resilience. Slyzah and Startup Afrika continue to empower the next generation of builders across the continent.</p>
+  `,
+  status: "published",
+  wordCount: 250,
+  createdAt: "2026-07-20T10:00:00.000Z",
+  updatedAt: "2026-07-25T12:00:00.000Z",
+  isEditorArticle: true,
+  source: "editor",
+};
+
+const DEFAULT_ARTICLES: Article[] = [SLYZAH_ARTICLE];
 
 const loadedArticles = loadJsonArray<Article>(ARTICLES_FILE, []).filter(a => !a.id.startsWith("seed_"));
 if (loadedArticles.length === 0) {
   saveJsonArray(ARTICLES_FILE, DEFAULT_ARTICLES);
+}
+// Ensure SLYZAH_ARTICLE is present if no editor article exists
+if (!loadedArticles.some(a => a.id === SLYZAH_ARTICLE.id || (a.title && a.title.toLowerCase().includes("slyzah")))) {
+  loadedArticles.unshift(SLYZAH_ARTICLE);
+  saveJsonArray(ARTICLES_FILE, loadedArticles);
 }
 const articles: Article[] = loadedArticles;
 
@@ -702,36 +739,28 @@ app.post("/api/articles/sync", async (req, res) => {
   res.json({ success: true, articles });
 });
 
-// Server-side cache for published articles (5-min TTL)
-let articlesCache: { timestamp: number; data: Article[] } = { timestamp: 0, data: [] };
-const ARTICLES_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
-
 app.get("/api/articles", async (req, res) => {
-  // Serve from cache if fresh
-  const now = Date.now();
-  if (now - articlesCache.timestamp < ARTICLES_CACHE_TTL && articlesCache.data.length > 0) {
-    res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
-    return res.json(articlesCache.data);
-  }
-
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   if (db) {
     try {
       const snapshot = await db.collection("articles").where("status", "==", "published").get();
       const fetched = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Article));
+      if (!fetched.some(a => a.id === SLYZAH_ARTICLE.id || (a.title && a.title.toLowerCase().includes("slyzah")))) {
+        fetched.unshift(SLYZAH_ARTICLE);
+      }
       fetched.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-      articlesCache = { timestamp: now, data: fetched };
-      res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
       return res.json(fetched);
     } catch (error) {
       console.error("Firestore fetch published articles error, falling back:", error);
       db = null;
     }
   }
+  if (!articles.some(a => a.id === SLYZAH_ARTICLE.id || (a.title && a.title.toLowerCase().includes("slyzah")))) {
+    articles.unshift(SLYZAH_ARTICLE);
+  }
   const published = articles
     .filter((a) => a.status === "published")
     .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-  articlesCache = { timestamp: now, data: published };
-  res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=60");
   res.json(published);
 });
 app.get("/api/health", (req, res) => {
