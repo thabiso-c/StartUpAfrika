@@ -32,6 +32,8 @@ export default function App() {
     const CACHE_TS_KEY = "sa_articles_cache_ts";
     const STALE_MS = 5 * 60 * 1000; // 5 minutes
 
+    let servedFromCache = false;
+
     // 1. Paint instantly from localStorage cache
     try {
       const cached = localStorage.getItem(CACHE_KEY);
@@ -44,14 +46,15 @@ export default function App() {
           );
           setPublishedArticles(sorted);
           setFeaturedArticle(sorted[0]);
-          if (showLoadingState) setLoadingArticles(false);
-          // If cache is fresh enough, skip the network call
+          setLoadingArticles(false); // always stop spinner from cache
+          servedFromCache = true;
+          // If cache is fresh enough, skip the network call entirely
           if (Date.now() - cachedTs < STALE_MS) return;
         }
       }
     } catch (_) {}
 
-    // 2. Fetch fresh data in the background
+    // 2. Fetch fresh data (silently if cache already shown, with spinner if not)
     try {
       const res = await fetch("/api/articles");
       if (res.ok) {
@@ -59,9 +62,7 @@ export default function App() {
         const sorted = data.sort((a: any, b: any) =>
           new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
         );
-        if (sorted.length > 0) {
-          setFeaturedArticle(sorted[0]);
-        }
+        if (sorted.length > 0) setFeaturedArticle(sorted[0]);
         setPublishedArticles(sorted);
         // Persist fresh data to localStorage
         localStorage.setItem(CACHE_KEY, JSON.stringify(sorted));
@@ -87,6 +88,7 @@ export default function App() {
     } catch (err) {
       console.error("Failed to fetch articles:", err);
     } finally {
+      // Always ensure spinner is dismissed even if there was no cache
       setLoadingArticles(false);
     }
   };
