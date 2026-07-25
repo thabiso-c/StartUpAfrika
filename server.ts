@@ -1439,12 +1439,19 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[Startup Afrika Server] running on http://localhost:${PORT}`);
-  });
+  // Only bind a port when running as a standalone process (local dev or non-Vercel host).
+  // On Vercel, api/index.ts exports the Express app as a serverless handler —
+  // calling app.listen() there would start a competing HTTP server and break responses.
+  if (!process.env.VERCEL && !process.env.K_SERVICE) {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`[Startup Afrika Server] running on http://localhost:${PORT}`);
+    });
+  } else {
+    console.log("[Startup Afrika Server] serverless mode — handler exported, skipping app.listen()");
+  }
 }
 
-// Start the server
+// Start the server (skipped automatically in Vercel serverless via the guard above)
 startServer();
 
 export default app;
