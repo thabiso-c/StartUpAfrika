@@ -3,12 +3,13 @@ import {
   Bold, Italic, Underline, Strikethrough,
   List, ListOrdered, Quote, Code, Link2, Image,
   Save, Eye, Edit3, X, Sparkles, Upload, Tag,
-  ChevronDown, CheckCircle, Clock, Loader, ArrowLeft
+  ChevronDown, CheckCircle, Clock, Loader, ArrowLeft, Globe
 } from "lucide-react";
 import { storage } from "../../config/firebase";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import ReactCrop, { type Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
+import { detectCountryFromLocation, getFlagImageUrl, COUNTRIES, type CountryInfo } from "../../utils/countryFlags";
 
 interface Article {
   id: string; title: string; subtitle: string;
@@ -48,6 +49,10 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
   const [coverHeight, setCoverHeight] = useState<number>(article.coverHeight || 288);
   const [coverPosition, setCoverPosition] = useState<string>(article.coverPosition || "center");
   const [isCroppingCover, setIsCroppingCover] = useState(false);
+  const [showFlagPicker, setShowFlagPicker] = useState(false);
+  const [flagSearch, setFlagSearch] = useState("");
+
+  const detectedCountry = detectCountryFromLocation(location);
   
   // Crop states
   const [cropModalOpen, setCropModalOpen] = useState(false);
@@ -567,9 +572,92 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
                 <label className="block text-white/30 text-[10px] uppercase tracking-widest mb-1">Startup Name</label>
                 <input value={startupName} onChange={(e) => setStartupName(e.target.value)} placeholder="e.g. Slyzah" className="w-full bg-transparent text-white/80 text-sm placeholder-white/15 outline-none" />
               </div>
-              <div>
-                <label className="block text-white/30 text-[10px] uppercase tracking-widest mb-1">Location</label>
-                <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Johannesburg, SA" className="w-full bg-transparent text-white/80 text-sm placeholder-white/15 outline-none" />
+              <div className="relative">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-white/30 text-[10px] uppercase tracking-widest">Location</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowFlagPicker(!showFlagPicker)}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
+                  >
+                    <Globe className="w-3 h-3" />
+                    <span>{showFlagPicker ? "Close Flags" : "Country Flag"}</span>
+                  </button>
+                </div>
+                
+                <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500/50 transition-colors">
+                  {detectedCountry ? (
+                    <div className="flex items-center gap-1.5 shrink-0 select-none bg-emerald-950/80 border border-emerald-500/40 px-1.5 py-0.5 rounded" title={detectedCountry.name}>
+                      <img
+                        src={getFlagImageUrl(detectedCountry.code)}
+                        alt={detectedCountry.name}
+                        className="w-4 h-3 object-cover rounded-[1px] shadow-sm"
+                        onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
+                      />
+                      <span className="text-sm leading-none">{detectedCountry.flag}</span>
+                    </div>
+                  ) : (
+                    <span className="text-xs text-white/30 shrink-0">📍</span>
+                  )}
+                  <input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    placeholder="e.g. Cape Town, South Africa"
+                    className="w-full bg-transparent text-white/90 text-sm placeholder-white/20 outline-none"
+                  />
+                </div>
+
+                {/* Country Flag Selector Popup */}
+                {showFlagPicker && (
+                  <div className="absolute left-0 right-0 top-full mt-2 z-30 bg-[#0e1310] border border-emerald-500/30 rounded-xl p-3 shadow-2xl backdrop-blur-md">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <input
+                        value={flagSearch}
+                        onChange={(e) => setFlagSearch(e.target.value)}
+                        placeholder="Search country or city..."
+                        className="w-full bg-white/5 border border-white/10 text-white/80 text-xs px-2.5 py-1.5 rounded-md outline-none focus:border-emerald-500"
+                        autoFocus
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowFlagPicker(false)}
+                        className="text-white/40 hover:text-white"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="max-h-40 overflow-y-auto grid grid-cols-2 sm:grid-cols-3 gap-1.5 pr-1">
+                      {COUNTRIES.filter((c) =>
+                        c.name.toLowerCase().includes(flagSearch.toLowerCase()) ||
+                        c.code.toLowerCase().includes(flagSearch.toLowerCase())
+                      ).map((c) => (
+                        <button
+                          key={c.code}
+                          type="button"
+                          onClick={() => {
+                            // Append or replace location with country flag
+                            const baseLocation = location.replace(/\s*🇿🇦|\s*🇳🇬|\s*🇰🇪|\s*🇪🇬|\s*🇬🇭|\s*🇷🇼|\s*🇲🇦|\s*🇺🇬|\s*🇹🇿|\s*🇪🇹|\s*🇸🇳|\s*🇿🇼|\s*🇧🇼|\s*🇳🇦|\s*🇿🇲|\s*🇹🇳|\s*🇩🇿|\s*🇨🇮|\s*🇦🇴|\s*🇲🇿|\s*🇲🇺|\s*🇨🇲|\s*🇺🇸|\s*🇬🇧|\s*🇨🇦|\s*🇩🇪|\s*🇫🇷|\s*🇳🇱|\s*🇪🇪|\s*🇦🇪|\s*🇮🇳|\s*🇸🇬|\s*🇧🇷|\s*🇦🇺|\s*🇨🇳|\s*🇯🇵/g, "").trim();
+                            const newLoc = baseLocation
+                              ? (baseLocation.toLowerCase().includes(c.name.toLowerCase()) ? `${baseLocation} ${c.flag}` : `${baseLocation}, ${c.name} ${c.flag}`)
+                              : `${c.name} ${c.flag}`;
+                            setLocation(newLoc);
+                            setShowFlagPicker(false);
+                          }}
+                          className="flex items-center gap-2 p-1.5 rounded-lg bg-white/5 hover:bg-emerald-900/40 border border-white/5 hover:border-emerald-500/40 transition-all text-left group"
+                        >
+                          <img
+                            src={getFlagImageUrl(c.code)}
+                            alt={c.name}
+                            className="w-4 h-3 object-cover rounded-[1px]"
+                          />
+                          <span className="text-sm">{c.flag}</span>
+                          <span className="text-[11px] text-white/70 group-hover:text-white truncate">{c.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block text-white/30 text-[10px] uppercase tracking-widest mb-1">Founded Year</label>
