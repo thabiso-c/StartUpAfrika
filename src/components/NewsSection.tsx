@@ -11,7 +11,11 @@ interface NewsArticle {
   articleId?: string;
 }
 
-export default function NewsSection() {
+interface NewsSectionProps {
+  onSelectArticle?: (id: string) => void;
+}
+
+export default function NewsSection({ onSelectArticle }: NewsSectionProps) {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -54,12 +58,9 @@ export default function NewsSection() {
 
   const handleArticleClick = (articleId?: string) => {
     if (!articleId) return;
-    // Update URL without full page reload
-    const params = new URLSearchParams(window.location.search);
-    params.set("article", articleId);
-    window.history.pushState({}, "", `${window.location.pathname}?${params.toString()}`);
-    // Dispatch popstate so App.tsx picks up the change
-    window.dispatchEvent(new PopStateEvent("popstate"));
+    if (onSelectArticle) {
+      onSelectArticle(articleId);
+    }
   };
 
   if (loading) {

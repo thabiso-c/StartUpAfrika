@@ -203,7 +203,7 @@ export default function App() {
             </div>
 
             {/* News Section */}
-            <NewsSection />
+            <NewsSection onSelectArticle={(id) => setSelectedInterviewId(id)} />
           </div>
         );
       case "submit":
