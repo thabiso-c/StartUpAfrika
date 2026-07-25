@@ -587,7 +587,7 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
                 
                 <div className="flex items-center gap-2 bg-white/5 border border-white/10 rounded-lg px-2.5 py-1.5 focus-within:border-emerald-500/50 transition-colors">
                   {detectedCountry ? (
-                    <div className="flex items-center gap-1.5 shrink-0 select-none bg-emerald-950/80 border border-emerald-500/40 px-1.5 py-0.5 rounded" title={detectedCountry.name}>
+                    <div className="flex items-center gap-1.5 shrink-0 select-none bg-emerald-950/90 border border-emerald-500/50 px-2 py-0.5 rounded-md shadow-inner" title={`${detectedCountry.name} (${detectedCountry.code})`}>
                       <img
                         src={getFlagImageUrl(detectedCountry.code)}
                         alt={detectedCountry.name}
@@ -595,6 +595,7 @@ export default function ArticleEditor({ article, token, onSave, onClose }: Props
                         onError={(e) => { (e.target as HTMLElement).style.display = 'none'; }}
                       />
                       <span className="text-sm leading-none">{detectedCountry.flag}</span>
+                      <span className="text-[10px] text-emerald-400 font-bold uppercase tracking-wider hidden sm:inline">{detectedCountry.code}</span>
                     </div>
                   ) : (
                     <span className="text-xs text-white/30 shrink-0">📍</span>
