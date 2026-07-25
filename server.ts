@@ -1048,11 +1048,12 @@ app.get("/api/news", async (req, res) => {
             sector = "AI & Machine Learning";
           }
           
-          // Rewrite title to focus on African innovation
-          const rewrittenTitle = `African ${sector} Innovation: Young Founders and Developers Building the Future Across the Continent`;
+          // Create unique title based on original content
+          const titleWords = originalTitle.split(' ').slice(0, 6).join(' ');
+          const rewrittenTitle = `African ${sector} Spotlight: ${titleWords} - Empowering Young Founders`;
           
           // Rewrite description to focus on young African founders (clean, no original content)
-          const rewrittenDesc = `A new generation of young African founders and developers is transforming the continent through innovative ${sector.toLowerCase()} solutions. This article highlights the growing tech ecosystem across Africa, where young entrepreneurs under 35 are building world-class solutions that address local challenges and create global impact. From fintech to health tech, e-commerce to agriculture, these young innovators are putting Africa on the global tech map.`;
+          const rewrittenDesc = `Young African founders and developers are making waves in ${sector.toLowerCase()}. This article showcases how entrepreneurs under 35 are building innovative solutions that address local challenges and put Africa on the global tech map. From startups to scale-ups, the next generation of African innovators is transforming industries across the continent.`;
           
           // Create a proper Startup Afrika article
           const startupAfrikaArticle: Article = {

@@ -130,7 +130,7 @@ export default function NewsSection() {
               {article.description}
             </p>
             <div className="flex items-center justify-between text-xs text-gray-400">
-              <span className="font-medium">{article.source}</span>
+              <span className="font-medium">Startup Afrika</span>
               <span>{formatDate(article.publishedAt)}</span>
             </div>
             <div className="mt-2 flex items-center text-emerald-600 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
