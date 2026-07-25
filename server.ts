@@ -971,25 +971,25 @@ app.get("/api/news", async (req, res) => {
       });
     }
 
-    // Fetch AI/Tech news
+    // Fetch African tech, startup, and fintech news
+    const techResponse = await fetch(
+      `https://newsapi.org/v2/everything?q=Africa+technology+startup+fintech&sortBy=publishedAt&pageSize=6&apiKey=${apiKey}`
+    );
+
+    // Fetch African AI news
     const aiResponse = await fetch(
-      `https://newsapi.org/v2/everything?q=AI+artificial+intelligence+technology&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`
+      `https://newsapi.org/v2/everything?q=Africa+AI+artificial+intelligence+machine+learning&sortBy=publishedAt&pageSize=4&apiKey=${apiKey}`
     );
 
-    // Fetch African startup news
-    const africaResponse = await fetch(
-      `https://newsapi.org/v2/everything?q=African+startup+entrepreneurship+innovation&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`
-    );
-
-    if (!aiResponse.ok || !africaResponse.ok) {
+    if (!techResponse.ok || !aiResponse.ok) {
       throw new Error("Failed to fetch news from API");
     }
 
+    const techData = await techResponse.json();
     const aiData = await aiResponse.json();
-    const africaData = await africaResponse.json();
 
     const combined = [
-      ...(aiData.articles || []).map((a: any) => ({
+      ...(techData.articles || []).map((a: any) => ({
         title: a.title,
         description: a.description || "",
         url: a.url,
@@ -997,7 +997,7 @@ app.get("/api/news", async (req, res) => {
         publishedAt: a.publishedAt,
         imageUrl: a.urlToImage,
       })),
-      ...(africaData.articles || []).map((a: any) => ({
+      ...(aiData.articles || []).map((a: any) => ({
         title: a.title,
         description: a.description || "",
         url: a.url,
