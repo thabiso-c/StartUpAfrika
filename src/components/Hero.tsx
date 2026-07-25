@@ -87,10 +87,10 @@ export default function Hero({
               
               {/* Massive Bold Title */}
               <h2 className="text-4xl sm:text-5xl md:text-[44px] font-extrabold tracking-tight leading-[1.08] text-white mb-6 group-hover:text-emerald-300 transition-colors">
-                {articlesLoading ? (
-                  <span className="inline-block bg-white/10 rounded-lg w-3/4 h-10 animate-pulse">&nbsp;</span>
-                ) : featuredArticle ? (
+                {featuredArticle ? (
                   featuredArticle.title
+                ) : articlesLoading ? (
+                  <span className="inline-block bg-white/10 rounded-lg w-3/4 h-10 animate-pulse">&nbsp;</span>
                 ) : (
                   "No featured article yet"
                 )}
@@ -99,10 +99,10 @@ export default function Hero({
             
             {/* Meta Info */}
             <p className="text-sm font-semibold text-stone-300 uppercase tracking-wider">
-              {articlesLoading ? (
-                <span className="inline-block bg-white/10 rounded-lg w-1/2 h-4 animate-pulse">&nbsp;</span>
-              ) : featuredArticle ? (
+              {featuredArticle ? (
                 `${featuredArticle.founderName || "Founder"} – ${new Date(featuredArticle.updatedAt || featuredArticle.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
+              ) : articlesLoading ? (
+                <span className="inline-block bg-white/10 rounded-lg w-1/2 h-4 animate-pulse">&nbsp;</span>
               ) : (
                 "Publish your first article to feature it here"
               )}

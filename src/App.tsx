@@ -25,49 +25,43 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [publishedArticles, setPublishedArticles] = useState<any[]>([]);
   const [loadingArticles, setLoadingArticles] = useState<boolean>(true);
+  const [featuredArticle, setFeaturedArticle] = useState<any>(null);
 
   const fetchPublishedArticles = async () => {
     try {
-      // First, try to sync local custom articles with the server
-      const cachedArticlesStr = localStorage.getItem("slyzah_custom_articles");
-      if (cachedArticlesStr) {
-        try {
-          const cachedArticles = JSON.parse(cachedArticlesStr);
-          if (Array.isArray(cachedArticles) && cachedArticles.length > 0) {
-            await fetch("/api/articles/sync", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ articles: cachedArticles }),
-            }).catch(console.error);
-          }
-        } catch (e) {
-          console.error("Failed to sync articles:", e);
-        }
-      }
-
+      // Fetch articles immediately without waiting for sync
       const res = await fetch("/api/articles");
       if (res.ok) {
-        let data = await res.json();
+        const data = await res.json();
         
-        // Merge with custom articles stored in localStorage to prevent loss on server recycle
-        if (cachedArticlesStr) {
-          try {
-            const cachedArticles = JSON.parse(cachedArticlesStr) as any[];
-            // Filter to only include cached articles that don't already exist in the API response (deduplicate by id)
-            const apiIds = new Set(data.map((a: any) => a.id));
-            const uniqueCached = cachedArticles.filter((a) => a.status === "published" && !apiIds.has(a.id));
-            
-            if (uniqueCached.length > 0) {
-              data = [...uniqueCached, ...data];
-              // Sort by updatedAt or createdAt desc
-              data.sort((a, b) => new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime());
-            }
-          } catch (e) {
-            console.error("Failed to parse cached articles:", e);
-          }
+        // Sort by updatedAt or createdAt desc
+        const sorted = data.sort((a: any, b: any) => 
+          new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+        );
+        
+        // Set featured article immediately for fast display
+        if (sorted.length > 0) {
+          setFeaturedArticle(sorted[0]);
         }
         
-        setPublishedArticles(data);
+        setPublishedArticles(sorted);
+        
+        // Sync local articles in background (non-blocking)
+        const cachedArticlesStr = localStorage.getItem("slyzah_custom_articles");
+        if (cachedArticlesStr) {
+          try {
+            const cachedArticles = JSON.parse(cachedArticlesStr);
+            if (Array.isArray(cachedArticles) && cachedArticles.length > 0) {
+              fetch("/api/articles/sync", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ articles: cachedArticles }),
+              }).catch(console.error);
+            }
+          } catch (e) {
+            console.error("Failed to sync articles:", e);
+          }
+        }
       }
     } catch (err) {
       console.error("Failed to fetch articles:", err);
@@ -167,9 +161,9 @@ export default function App() {
             {/* Minimalist Substack Hero block */}
             <Hero 
               user={user} 
-              featuredArticle={publishedArticles[0]}
+              featuredArticle={featuredArticle || publishedArticles[0]}
               previousArticles={publishedArticles.slice(1)}
-              onSelect={() => publishedArticles[0] && setSelectedInterviewId(publishedArticles[0].id)}
+              onSelect={() => (featuredArticle || publishedArticles[0]) && setSelectedInterviewId((featuredArticle || publishedArticles[0]).id)}
               articlesLoading={loadingArticles}
             />
 
