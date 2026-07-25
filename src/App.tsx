@@ -137,6 +137,13 @@ export default function App() {
 
   const selectedInterview = [...publishedArticles, ...interviews].find((i) => i.id === selectedInterviewId);
 
+  // When a news article is selected but not found in publishedArticles, re-fetch
+  useEffect(() => {
+    if (selectedInterviewId && !selectedInterview) {
+      fetchPublishedArticles();
+    }
+  }, [selectedInterviewId]);
+
   // Switch tabs and reset active detail views
   const handleTabChange = (tab: string) => {
     setCurrentTab(tab);
