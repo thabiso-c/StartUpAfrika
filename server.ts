@@ -1055,10 +1055,15 @@ async function fetchAndParaphraseNews() {
     for (let i = 0; i < unique.length; i++) {
       const article = unique[i];
 
-      // --- DEDUPLICATION: skip if already in Firestore/local store by stable URL hash ---
+      // --- DEDUPLICATION: check Firestore first (survives cold starts), then in-memory ---
       const stableId = urlToId(article.url);
-      const alreadyExists = articles.some(a => a.id === stableId) ||
-        (db ? await db.collection("articles").doc(stableId).get().then(d => d.exists).catch(() => false) : false);
+      let alreadyExists = articles.some(a => a.id === stableId);
+      if (!alreadyExists && db) {
+        try {
+          const docSnap = await db.collection("articles").doc(stableId).get();
+          alreadyExists = docSnap.exists;
+        } catch (_) {}
+      }
 
       if (alreadyExists) {
         console.log(`[News Task] Skipping already-processed article: ${article.title}`);
@@ -1170,6 +1175,35 @@ setInterval(async () => {
   }
 }, CACHE_TTL);
 
+// Helper: fetch already-processed news articles from Firestore
+async function getExistingNewsArticles(): Promise<any[]> {
+  if (db) {
+    try {
+      const snapshot = await db.collection("articles")
+        .where("status", "==", "published")
+        .where("founderName", "==", "Startup Afrika AI News")
+        .orderBy("createdAt", "desc")
+        .limit(8)
+        .get();
+      return snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          title: data.title,
+          description: data.subtitle,
+          url: "",
+          source: data.startupName || "Startup Afrika",
+          publishedAt: data.createdAt,
+          imageUrl: data.coverImage || "",
+          articleId: doc.id,
+        };
+      });
+    } catch (err) {
+      console.error("[News] Failed to load existing news articles from Firestore:", err);
+    }
+  }
+  return [];
+}
+
 // News API Endpoint
 app.get("/api/news", async (req, res) => {
   try {
@@ -1179,12 +1213,30 @@ app.get("/api/news", async (req, res) => {
       return res.json({ articles: newsCache.articles });
     }
 
-    // Force a fetch if cache is empty or expired
-    const newArticles = await fetchAndParaphraseNews();
-    res.json({ articles: newArticles });
+    // Load already-processed articles from Firestore first (survives cold starts)
+    const existingArticles = await getExistingNewsArticles();
+    if (existingArticles.length > 0) {
+      // Serve existing articles immediately while attempting background refresh
+      newsCache = { timestamp: now - CACHE_TTL + 10000, articles: existingArticles }; // mark as nearly-expired so background will refresh
+    }
+
+    // Try to fetch & process new articles
+    try {
+      const newArticles = await fetchAndParaphraseNews();
+      res.json({ articles: newArticles.length > 0 ? newArticles : existingArticles });
+    } catch (fetchErr: any) {
+      // If Gemini quota is exhausted, serve the existing stored articles gracefully
+      const isQuotaError = fetchErr?.status === 429 || String(fetchErr?.message).includes("RESOURCE_EXHAUSTED");
+      if (isQuotaError && existingArticles.length > 0) {
+        console.warn("[News] Gemini quota exhausted — serving existing stored articles.");
+        newsCache = { timestamp: now, articles: existingArticles };
+        return res.json({ articles: existingArticles });
+      }
+      throw fetchErr;
+    }
   } catch (error) {
     console.error("Error fetching news on request:", error);
-    res.json({ 
+    res.json({
       error: "Unable to load news at this time",
       articles: newsCache.articles // fallback to stale cache if any
     });
