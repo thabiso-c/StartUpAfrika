@@ -1017,13 +1017,13 @@ app.get("/api/news", async (req, res) => {
       new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
     );
 
-    const articles = unique.slice(0, 8);
+    const newsArticles = unique.slice(0, 8);
 
-    // If Gemini AI is available, rewrite articles to focus on young African founders and developers
-    if (ai && articles.length > 0) {
+    // If Gemini AI is available, rewrite articles and save them as Startup Afrika articles
+    if (ai && newsArticles.length > 0) {
       try {
         const rewrittenArticles = await Promise.all(
-          articles.map(async (article) => {
+          newsArticles.map(async (article) => {
             try {
               const prompt = `
                 Rewrite this news article for Startup Afrika, a platform that highlights young African founders, developers, and innovators. 
@@ -1045,7 +1045,10 @@ app.get("/api/news", async (req, res) => {
                 Return JSON format:
                 {
                   "title": "rewritten title",
-                  "description": "rewritten description"
+                  "description": "rewritten description",
+                  "founderName": "extracted or generated founder name if mentioned, otherwise empty string",
+                  "startupName": "extracted or generated startup/company name if mentioned, otherwise empty string",
+                  "sector": "the main sector (fintech, e-commerce, health, agriculture, mining, manufacturing, etc.)"
                 }
               `;
 
@@ -1060,10 +1063,37 @@ app.get("/api/news", async (req, res) => {
               const text = response.text?.trim() || "{}";
               const rewritten = JSON.parse(text);
               
+              // Create a proper Startup Afrika article
+              const startupAfrikaArticle: Article = {
+                id: `art_news_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`,
+                title: rewritten.title || article.title,
+                subtitle: rewritten.description || article.description,
+                founderName: rewritten.founderName || "",
+                startupName: rewritten.startupName || "",
+                location: "Africa",
+                foundedYear: "",
+                tags: [rewritten.sector || "Technology"].filter(Boolean),
+                coverImage: article.imageUrl || "",
+                coverHeight: 288,
+                coverPosition: "center",
+                body: `<p>${rewritten.description || article.description}</p><p><em>This article was curated from industry news and rewritten to highlight African innovation.</em></p>`,
+                status: "published",
+                wordCount: (rewritten.description || article.description || "").split(/\s+/).filter(Boolean).length,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+
+              // Save to the global articles array (not the local one)
+              const existingIndex = articles.findIndex(a => a.id === startupAfrikaArticle.id);
+              if (existingIndex === -1) {
+                articles.push(startupAfrikaArticle);
+                saveJsonArray(ARTICLES_FILE, articles);
+              }
+
               return {
                 ...article,
-                title: rewritten.title || article.title,
-                description: rewritten.description || article.description,
+                title: startupAfrikaArticle.title,
+                description: startupAfrikaArticle.subtitle,
               };
             } catch (err) {
               console.error("Error rewriting article:", err);
@@ -1075,10 +1105,10 @@ app.get("/api/news", async (req, res) => {
         res.json({ articles: rewrittenArticles });
       } catch (error) {
         console.error("Error rewriting articles with AI:", error);
-        res.json({ articles }); // Return original articles if AI rewrite fails
+        res.json({ articles: newsArticles }); // Return original articles if AI rewrite fails
       }
     } else {
-      res.json({ articles });
+      res.json({ articles: newsArticles });
     }
   } catch (error) {
     console.error("Error fetching news:", error);
