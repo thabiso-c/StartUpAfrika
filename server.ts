@@ -1022,67 +1022,55 @@ app.get("/api/news", async (req, res) => {
     // Rewrite articles to focus on African innovation (rule-based, no AI required)
     if (newsArticles.length > 0) {
       try {
-        console.log("Rewriting news articles for African innovation focus...");
+        console.log(`Rewriting ${newsArticles.length} articles for African innovation focus...`);
         const rewrittenArticles = newsArticles.map((article, index) => {
-          // Simple rule-based rewriting to focus on African innovation
-          let title = article.title;
-          let description = article.description;
+          // Always rewrite the title and description
+          const originalTitle = article.title;
+          const originalDesc = article.description || "";
           
-          // Extract company/startup name from title
-          const companyMatch = title.match(/^([A-Z][a-zA-Z0-9\s]+?)(?:\s+(?:raises|launches|announces|partners|expands|unveils))/);
-          const startupName = companyMatch ? companyMatch[1].trim() : "";
-          
-          // Determine sector based on keywords
+          // Extract sector from content
           let sector = "Technology";
-          const lowerTitle = title.toLowerCase();
-          const lowerDesc = description.toLowerCase();
+          const content = (originalTitle + " " + originalDesc).toLowerCase();
           
-          if (lowerTitle.includes('fintech') || lowerTitle.includes('payment') || lowerTitle.includes('banking') || lowerDesc.includes('fintech')) {
+          if (content.includes('fintech') || content.includes('payment') || content.includes('banking') || content.includes('stablecoin')) {
             sector = "Fintech";
-          } else if (lowerTitle.includes('health') || lowerTitle.includes('medical') || lowerDesc.includes('health')) {
+          } else if (content.includes('health') || content.includes('medical') || content.includes('healthcare')) {
             sector = "Health Tech";
-          } else if (lowerTitle.includes('e-commerce') || lowerTitle.includes('ecommerce') || lowerDesc.includes('e-commerce')) {
+          } else if (content.includes('e-commerce') || content.includes('ecommerce') || content.includes('retail')) {
             sector = "E-commerce";
-          } else if (lowerTitle.includes('agriculture') || lowerDesc.includes('agriculture')) {
+          } else if (content.includes('agriculture') || content.includes('agritech')) {
             sector = "Agriculture Tech";
-          } else if (lowerTitle.includes('mining') || lowerDesc.includes('mining')) {
+          } else if (content.includes('mining') || content.includes('mineral')) {
             sector = "Mining Tech";
-          } else if (lowerTitle.includes('manufacturing') || lowerDesc.includes('manufacturing')) {
+          } else if (content.includes('manufacturing') || content.includes('industrial')) {
             sector = "Manufacturing Tech";
-          } else if (lowerTitle.includes('ai') || lowerTitle.includes('artificial intelligence') || lowerDesc.includes('ai')) {
+          } else if (content.includes('ai') || content.includes('artificial intelligence') || content.includes('machine learning')) {
             sector = "AI & Machine Learning";
           }
           
           // Rewrite title to focus on African innovation
-          if (startupName && !title.includes('Africa')) {
-            const actionMatch = title.match(/(raises|launches|announces|partners|expands|unveils|introduces)/);
-            const action = actionMatch ? actionMatch[1] : "innovates";
-            
-            title = `${startupName} ${action} new solutions across Africa - Young founders lead the way`;
-          }
+          const rewrittenTitle = `African ${sector} Innovation: Young Founders and Developers Building the Future Across the Continent`;
           
           // Rewrite description to focus on young African founders
-          if (description && description.length > 20) {
-            const shortDesc = description.substring(0, 150).replace(/<[^>]+>/g, '');
-            description = `A new generation of young African founders and developers is transforming the continent through innovative ${sector.toLowerCase()} solutions. ${shortDesc} This highlights the growing tech ecosystem across Africa, where young entrepreneurs are building solutions that address local challenges and create global impact.`;
-          }
+          const shortDesc = originalDesc.substring(0, 250).replace(/<[^>]+>/g, '').trim();
+          const rewrittenDesc = `A new generation of young African founders and developers is transforming the continent through innovative ${sector.toLowerCase()} solutions. ${shortDesc} This highlights the growing tech ecosystem across Africa, where young entrepreneurs under 35 are building world-class solutions that address local challenges and create global impact. From fintech to health tech, e-commerce to agriculture, these young innovators are putting Africa on the global tech map.`;
           
           // Create a proper Startup Afrika article
           const startupAfrikaArticle: Article = {
             id: `art_news_${Date.now()}_${index}_${Math.random().toString(36).slice(2, 9)}`,
-            title: title,
-            subtitle: description,
+            title: rewrittenTitle,
+            subtitle: rewrittenDesc,
             founderName: "",
-            startupName: startupName,
+            startupName: "",
             location: "Africa",
             foundedYear: "",
-            tags: [sector].filter(Boolean),
+            tags: [sector, "Young Founders", "African Innovation"].filter(Boolean),
             coverImage: article.imageUrl || "",
             coverHeight: 288,
             coverPosition: "center",
-            body: `<p>${description}</p><p><em>This article highlights young African founders and developers building innovative solutions across the continent.</em></p>`,
+            body: `<p>${rewrittenDesc}</p><p><em>This article is part of our series highlighting young African founders and developers building innovative solutions across the continent.</em></p>`,
             status: "published",
-            wordCount: description.split(/\s+/).filter(Boolean).length,
+            wordCount: rewrittenDesc.split(/\s+/).filter(Boolean).length,
             createdAt: new Date().toISOString(),
             updatedAt: new Date().toISOString(),
           };
@@ -1092,17 +1080,17 @@ app.get("/api/news", async (req, res) => {
           if (existingIndex === -1) {
             articles.push(startupAfrikaArticle);
             saveJsonArray(ARTICLES_FILE, articles);
-            console.log(`Saved article: ${startupAfrikaArticle.title}`);
+            console.log(`✓ Saved: ${rewrittenTitle.substring(0, 60)}...`);
           }
 
           return {
             ...article,
-            title: startupAfrikaArticle.title,
-            description: startupAfrikaArticle.subtitle,
+            title: rewrittenTitle,
+            description: rewrittenDesc,
           };
         });
 
-        console.log(`Successfully processed ${rewrittenArticles.length} articles`);
+        console.log(`✓ Successfully rewrote and saved ${rewrittenArticles.length} articles`);
         res.json({ articles: rewrittenArticles });
       } catch (error) {
         console.error("Error rewriting articles:", error);
