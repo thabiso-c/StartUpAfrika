@@ -52,6 +52,16 @@ export default function NewsSection() {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
+  const handleArticleClick = (articleId?: string) => {
+    if (!articleId) return;
+    // Update URL without full page reload
+    const params = new URLSearchParams(window.location.search);
+    params.set("article", articleId);
+    window.history.pushState({}, "", `${window.location.pathname}?${params.toString()}`);
+    // Dispatch popstate so App.tsx picks up the change
+    window.dispatchEvent(new PopStateEvent("popstate"));
+  };
+
   if (loading) {
     return (
       <div className="max-w-6xl mx-auto px-4 py-16">
@@ -105,10 +115,10 @@ export default function NewsSection() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {articles.map((article, index) => (
-          <a
+          <div
             key={index}
-            href={article.articleId ? `/?article=${article.articleId}` : "#"}
-            className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-emerald-300 transition-all block"
+            onClick={() => handleArticleClick(article.articleId)}
+            className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer"
           >
             {article.imageUrl && (
               <div className="h-32 overflow-hidden rounded-md mb-3 bg-gray-100">
@@ -135,7 +145,7 @@ export default function NewsSection() {
             <div className="mt-2 flex items-center text-emerald-600 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
               Read full article <ArrowRight className="w-3 h-3 ml-1" />
             </div>
-          </a>
+          </div>
         ))}
       </div>
     </div>
