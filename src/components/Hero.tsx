@@ -6,13 +6,13 @@ export default function Hero({
   user,
   featuredArticle,
   previousArticles,
-  onSelect,
+  onSelectArticle,
   articlesLoading
 }: { 
   user?: User | null;
   featuredArticle?: any;
   previousArticles?: any[];
-  onSelect?: () => void;
+  onSelectArticle?: (id: string) => void;
   articlesLoading?: boolean;
 }) {
   const [email, setEmail] = useState("");
@@ -73,8 +73,8 @@ export default function Hero({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         {/* Left Column: Big Featured Card */}
         <div 
-          onClick={onSelect}
-          className="lg:col-span-9 overflow-hidden rounded-[20px] bg-gradient-to-r from-stone-950 via-emerald-950 to-[#0c3121] text-white flex flex-col md:flex-row justify-between min-h-[500px] relative border border-emerald-900/30 shadow-sm cursor-pointer hover:border-emerald-500/50 transition-all group"
+          onClick={() => featuredArticle?.id && onSelectArticle && onSelectArticle(featuredArticle.id)}
+          className={`lg:col-span-9 overflow-hidden rounded-[20px] bg-gradient-to-r from-stone-950 via-emerald-950 to-[#0c3121] text-white flex flex-col md:flex-row justify-between min-h-[500px] relative border border-emerald-900/30 shadow-sm ${featuredArticle ? "cursor-pointer hover:border-emerald-500/50" : "cursor-default"} transition-all group`}
           id="featured-banner-card"
         >
           {/* Card Left Text Section */}
@@ -225,7 +225,7 @@ export default function Hero({
             {previousArticles.map((article) => (
               <div
                 key={article.id}
-                onClick={() => onSelect && onSelect()}
+                onClick={() => article?.id && onSelectArticle && onSelectArticle(article.id)}
                 className="flex-shrink-0 w-72 bg-white rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg transition-all group"
               >
                 {article.coverImage && (

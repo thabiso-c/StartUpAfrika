@@ -161,6 +161,22 @@ export default function App() {
 
   const selectedInterview = [...publishedArticles, ...interviews].find((i) => i.id === selectedInterviewId);
 
+  // Helper to determine if an article was published manually via the editor
+  const isEditorArticle = (article: any) => {
+    if (!article) return false;
+    if (article.isEditorArticle === true || article.publishedViaEditor === true || article.source === "editor") return true;
+    if (article.id?.startsWith("art_news_") || article.sourceUrl || article.isNews || article.source === "news_scraper") {
+      return false;
+    }
+    return true;
+  };
+
+  const editorArticles = publishedArticles.filter(isEditorArticle);
+  const otherArticles = publishedArticles.filter((a) => !isEditorArticle(a));
+
+  const currentFeatured = editorArticles[0] || null;
+  const currentPrevious = editorArticles.slice(1);
+
   // When a news article is selected but not found in publishedArticles, re-fetch without showing spinner
   useEffect(() => {
     if (selectedInterviewId && !selectedInterview) {
@@ -202,9 +218,9 @@ export default function App() {
             {/* Minimalist Substack Hero block */}
             <Hero 
               user={user} 
-              featuredArticle={featuredArticle || publishedArticles[0]}
-              previousArticles={publishedArticles.slice(1)}
-              onSelect={() => (featuredArticle || publishedArticles[0]) && setSelectedInterviewId((featuredArticle || publishedArticles[0]).id)}
+              featuredArticle={currentFeatured}
+              previousArticles={currentPrevious}
+              onSelectArticle={(id) => setSelectedInterviewId(id)}
               articlesLoading={loadingArticles}
             />
 
@@ -223,21 +239,17 @@ export default function App() {
                   <div className="text-center py-12 text-gray-400 text-sm">
                     Loading latest stories…
                   </div>
-                ) : publishedArticles.length > 1 ? (
-                  publishedArticles.slice(1).map((interview) => (
+                ) : otherArticles.length > 0 ? (
+                  otherArticles.map((interview) => (
                     <InterviewCard
                       key={interview.id}
                       interview={interview}
                       onSelect={() => setSelectedInterviewId(interview.id)}
                     />
                   ))
-                ) : publishedArticles.length === 1 ? (
-                  <div className="text-center py-12 text-gray-400 text-sm">
-                    All set! There are no other curations yet.
-                  </div>
                 ) : (
                   <div className="text-center py-12 text-gray-400 text-sm">
-                    No curations have been published yet.
+                    No other founder stories available yet.
                   </div>
                 )}
               </div>
