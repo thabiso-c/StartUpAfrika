@@ -155,48 +155,50 @@ export default function App() {
 
   const selectedInterview = [...publishedArticles, ...interviews].find((i) => i.id === selectedInterviewId);
 
-  // Helper to identify scraped news articles from RSS or AI news task
+  // Helper to identify scraped news articles from RSS, GNews, or AI news scraper
   const isScrapedNewsArticle = (article: any) => {
     if (!article) return false;
-    // Explicit editor articles are NEVER scraped news articles
-    if (article.isEditorArticle === true || article.publishedViaEditor === true || article.source === "editor") {
-      return false;
-    }
     if (article.isNews === true || article.source === "news_scraper") return true;
     if (article.id?.startsWith("art_news_")) return true;
     if (article.sourceUrl && String(article.sourceUrl).trim().length > 0) return true;
-    if (article.founderName === "Startup Afrika AI News" || String(article.founderName || "").includes("AI News")) return true;
-    if (article.startupName === "Startup Afrika AI News" || String(article.startupName || "").includes("AI News")) return true;
+    const founder = String(article.founderName || "").toLowerCase();
+    const startup = String(article.startupName || "").toLowerCase();
+    if (founder.includes("ai news") || startup.includes("ai news") || founder.includes("news") || startup.includes("news")) return true;
     return false;
   };
 
   // Helper to determine if an article was published manually via the editor
   const isEditorArticle = (article: any) => {
     if (!article) return false;
-    
-    // Scraped news articles are strictly excluded from editor articles
+
+    // Any scraped or aggregated news article is strictly excluded from editor articles
     if (isScrapedNewsArticle(article)) {
       return false;
     }
 
-    // Explicit editor flags
+    // Explicit editor flags set when written/published via Editor Dashboard
     if (article.isEditorArticle === true || article.publishedViaEditor === true || article.source === "editor") {
       return true;
     }
 
-    // Title match for user editor publication
+    // Explicit ID check for editor articles (e.g., Building Slyzah)
+    if (article.id === "art_slyzah_building_thabiso" || article.id?.startsWith("art_editor_")) {
+      return true;
+    }
+
+    // Title match for editor story
     const titleLower = (article.title || "").toLowerCase();
     if (titleLower.includes("slyzah") || titleLower.includes("building slyzah")) {
       return true;
     }
 
-    // Standard editor article ID format (art_...) without news prefix
+    // Standard editor article ID format (art_...) excluding news prefix
     if (article.id?.startsWith("art_") && !article.id?.startsWith("art_news_")) {
       return true;
     }
 
-    // Default: if it wasn't a scraped news article, treat it as an editor article
-    return true;
+    // Default: unless explicitly created as an editor article, do not treat as featured editor article
+    return false;
   };
 
   const editorArticles = publishedArticles.filter(isEditorArticle);
