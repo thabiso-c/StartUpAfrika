@@ -18,63 +18,16 @@ export default function NewsSection() {
   useEffect(() => {
     const fetchNews = async () => {
       try {
-        // Using NewsAPI for tech/AI news - you'll need to add NEWSAPI_KEY to your environment
-        const apiKey = process.env.VITE_NEWSAPI_KEY;
-        
-        if (!apiKey) {
-          // Fallback: Show placeholder message if no API key
-          setError("News API key not configured. Add VITE_NEWSAPI_KEY to your environment variables.");
-          setLoading(false);
-          return;
+        const res = await fetch("/api/news");
+        const data = await res.json();
+
+        if (data.error) {
+          setError(data.error);
+        } else if (data.articles && data.articles.length > 0) {
+          setArticles(data.articles);
+        } else {
+          setError("No news articles available at this time.");
         }
-
-        // Fetch AI/Tech news
-        const aiResponse = await fetch(
-          `https://newsapi.org/v2/everything?q=AI+artificial+intelligence+technology&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`
-        );
-
-        // Fetch African startup news
-        const africaResponse = await fetch(
-          `https://newsapi.org/v2/everything?q=African+startup+entrepreneurship+innovation&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`
-        );
-
-        if (!aiResponse.ok || !africaResponse.ok) {
-          throw new Error("Failed to fetch news");
-        }
-
-        const aiData = await aiResponse.json();
-        const africaData = await africaResponse.json();
-
-        const combined = [
-          ...(aiData.articles || []).map((a: any) => ({
-            title: a.title,
-            description: a.description || "",
-            url: a.url,
-            source: a.source.name,
-            publishedAt: a.publishedAt,
-            imageUrl: a.urlToImage,
-          })),
-          ...(africaData.articles || []).map((a: any) => ({
-            title: a.title,
-            description: a.description || "",
-            url: a.url,
-            source: a.source.name,
-            publishedAt: a.publishedAt,
-            imageUrl: a.urlToImage,
-          })),
-        ];
-
-        // Remove duplicates by URL
-        const unique = combined.filter((article, index, self) =>
-          index === self.findIndex((a) => a.url === article.url)
-        );
-
-        // Sort by date
-        unique.sort((a, b) => 
-          new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-        );
-
-        setArticles(unique.slice(0, 8));
         setLoading(false);
       } catch (err) {
         console.error("Error fetching news:", err);

@@ -959,6 +959,74 @@ app.post("/api/submissions", (req, res) => {
   res.json({ success: true, submission: newSubmission });
 });
 
+// News API Endpoint
+app.get("/api/news", async (req, res) => {
+  try {
+    const apiKey = process.env.NEWSAPI_KEY;
+    
+    if (!apiKey) {
+      return res.json({ 
+        error: "News API key not configured",
+        articles: []
+      });
+    }
+
+    // Fetch AI/Tech news
+    const aiResponse = await fetch(
+      `https://newsapi.org/v2/everything?q=AI+artificial+intelligence+technology&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`
+    );
+
+    // Fetch African startup news
+    const africaResponse = await fetch(
+      `https://newsapi.org/v2/everything?q=African+startup+entrepreneurship+innovation&sortBy=publishedAt&pageSize=5&apiKey=${apiKey}`
+    );
+
+    if (!aiResponse.ok || !africaResponse.ok) {
+      throw new Error("Failed to fetch news from API");
+    }
+
+    const aiData = await aiResponse.json();
+    const africaData = await africaResponse.json();
+
+    const combined = [
+      ...(aiData.articles || []).map((a: any) => ({
+        title: a.title,
+        description: a.description || "",
+        url: a.url,
+        source: a.source?.name || "Unknown",
+        publishedAt: a.publishedAt,
+        imageUrl: a.urlToImage,
+      })),
+      ...(africaData.articles || []).map((a: any) => ({
+        title: a.title,
+        description: a.description || "",
+        url: a.url,
+        source: a.source?.name || "Unknown",
+        publishedAt: a.publishedAt,
+        imageUrl: a.urlToImage,
+      })),
+    ];
+
+    // Remove duplicates by URL
+    const unique = combined.filter((article, index, self) =>
+      index === self.findIndex((a) => a.url === article.url)
+    );
+
+    // Sort by date
+    unique.sort((a, b) => 
+      new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
+    );
+
+    res.json({ articles: unique.slice(0, 8) });
+  } catch (error) {
+    console.error("Error fetching news:", error);
+    res.json({ 
+      error: "Unable to load news at this time",
+      articles: []
+    });
+  }
+});
+
 // Gemini Outreach Script and Interview Generator
 app.post("/api/generate-outreach", async (req, res) => {
   if (!ai) {
