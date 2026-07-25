@@ -164,22 +164,34 @@ export default function App() {
   // Helper to determine if an article was published manually via the editor
   const isEditorArticle = (article: any) => {
     if (!article) return false;
+    
+    // Scraped news indicators (MUST come first to exclude AI scraped articles)
+    if (
+      article.founderName === "Startup Afrika AI News" ||
+      article.founderName?.includes("AI News") ||
+      article.isNews === true ||
+      article.source === "news_scraper" ||
+      article.sourceUrl ||
+      article.id?.startsWith("art_news_")
+    ) {
+      return false;
+    }
+
     // Explicit editor flags
     if (article.isEditorArticle === true || article.publishedViaEditor === true || article.source === "editor") {
       return true;
     }
-    // Scraped news indicators
-    if (article.sourceUrl || article.isNews || article.source === "news_scraper" || article.id?.startsWith("art_news_")) {
-      return false;
-    }
+
     // Title match for user editor publication (e.g., "BUILDING SLYZAH: Thabiso's story")
     if (article.title?.toLowerCase().includes("slyzah") || article.title?.toLowerCase().includes("building slyzah")) {
       return true;
     }
-    // Standard editor article ID format (art_...) without news prefix or sourceUrl
-    if (article.id?.startsWith("art_") && !article.id?.startsWith("art_news_") && !article.sourceUrl) {
+
+    // Standard editor article ID format (art_...) without news prefix, sourceUrl, or AI News founder
+    if (article.id?.startsWith("art_") && !article.id?.startsWith("art_news_") && !article.sourceUrl && article.founderName !== "Startup Afrika AI News") {
       return true;
     }
+
     return false;
   };
 

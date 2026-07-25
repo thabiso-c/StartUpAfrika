@@ -360,6 +360,8 @@ app.post("/api/editor/articles", requireEditorToken, async (req, res) => {
     wordCount,
     createdAt,
     updatedAt: new Date().toISOString(),
+    isEditorArticle: true,
+    source: "editor",
   });
   
   if (db) {
@@ -1132,7 +1134,7 @@ async function fetchAndParaphraseNews() {
 
         const aiResult = await callGeminiWithRetry(prompt);
 
-        const startupAfrikaArticle: Article & { sourceUrl?: string } = {
+        const startupAfrikaArticle: Article & { sourceUrl?: string; isEditorArticle?: boolean; isNews?: boolean; source?: string } = {
           id: stableId,
           title: aiResult.newTitle || `Startup Afrika Featured: ${article.title}`,
           subtitle: (aiResult.paraphrasedBodyHtml || article.description).replace(/<[^>]*>?/gm, '').substring(0, 150) + "...",
@@ -1150,6 +1152,9 @@ async function fetchAndParaphraseNews() {
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
           sourceUrl: article.url,
+          isEditorArticle: false,
+          isNews: true,
+          source: "news_scraper",
         };
 
         articles.push(startupAfrikaArticle);
