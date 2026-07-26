@@ -128,40 +128,50 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
           </div>
 
           {/* Navigation Items aligned to mockup */}
-          <nav className="flex items-center gap-1.5 sm:gap-7" id="main-nav">
+          <nav className="flex items-center gap-1.5 sm:gap-6" id="main-nav">
             <button
               onClick={() => setCurrentTab("explore")}
               className={`px-1 py-2 text-sm font-semibold transition-colors ${
                 currentTab === "explore"
-                  ? "text-emerald-700"
+                  ? "text-emerald-700 font-bold"
                   : "text-gray-600 hover:text-emerald-600"
               }`}
               id="nav-home"
             >
               Home
             </button>
-            
+
             <button
-              onClick={() => setCurrentTab("submit")}
-              className={`px-1 py-2 text-sm font-semibold transition-colors ${
-                currentTab === "submit"
-                  ? "text-emerald-700"
+              onClick={() => setCurrentTab("community")}
+              className={`px-1 py-2 text-sm font-semibold transition-colors relative flex items-center gap-1 ${
+                currentTab === "community"
+                  ? "text-emerald-700 font-bold"
                   : "text-gray-600 hover:text-emerald-600"
               }`}
-              id="nav-founders"
+              id="nav-community"
             >
-              Founders
+              <span>Community</span>
             </button>
 
             {user ? (
-              <div className="flex items-center gap-4 ml-2 sm:ml-4">
-                <div className="flex items-center gap-2">
-                  {user.photoURL && <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-gray-200" />}
-                  <span className="text-sm font-semibold text-gray-700 hidden sm:block">{user.displayName || user.name}</span>
+              <div className="flex items-center gap-3 ml-2 sm:ml-4">
+                <div 
+                  onClick={() => setCurrentTab("community")}
+                  className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-xl hover:bg-gray-50"
+                  title="Go to Member Community Hub"
+                >
+                  {user.photoURL ? (
+                    <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-emerald-300" />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-emerald-800 text-white flex items-center justify-center text-xs font-bold">
+                      {(user.displayName || user.name || "M")[0]}
+                    </div>
+                  )}
+                  <span className="text-sm font-semibold text-gray-800 hidden sm:block">{user.displayName || user.name}</span>
                 </div>
                 <button
                   onClick={handleSignOut}
-                  className="px-4 py-2 text-gray-500 hover:text-gray-700 text-xs font-bold uppercase tracking-wider transition-colors"
+                  className="px-3 py-1.5 text-gray-400 hover:text-rose-600 text-xs font-bold uppercase tracking-wider transition-colors"
                 >
                   Sign Out
                 </button>
@@ -171,14 +181,15 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
                 <button
                   onClick={() => setIsLoginModalOpen(true)}
                   className={`px-1 py-2 text-sm font-semibold transition-colors ${
-                    currentTab === "admin"
-                      ? "text-emerald-700"
+                    currentTab === "community" || currentTab === "admin"
+                      ? "text-emerald-700 font-bold"
                       : "text-gray-600 hover:text-emerald-600"
                   }`}
                   id="nav-login"
                 >
                   Log in
                 </button>
+
 
                 <button
                   onClick={onOpenSubscribe}

@@ -8,9 +8,12 @@ import InterviewDetail from "./components/InterviewDetail";
 import OutreachGenerator from "./components/OutreachGenerator";
 import SubmitBlueprint from "./components/SubmitBlueprint";
 import AdminDashboard from "./components/AdminDashboard";
+import AdminGate from "./components/AdminGate";
+import AdvertiseWindow from "./components/AdvertiseWindow";
 import Footer from "./components/Footer";
 import NewsSection from "./components/NewsSection";
 import EditorGate from "./components/editor/EditorGate";
+import CommunityHub from "./components/community/CommunityHub";
 import { interviews } from "./data/interviews";
 import { AlertCircle, HelpCircle, BookOpen } from "lucide-react";
 
@@ -20,7 +23,18 @@ export default function App() {
     return <EditorGate />;
   }
 
-  const [currentTab, setCurrentTab] = useState<string>("explore");
+  // Route /admin to the private executive admin portal
+  if (window.location.pathname.startsWith("/admin")) {
+    return <AdminGate />;
+  }
+
+  const [currentTab, setCurrentTab] = useState<string>(() => {
+    if (window.location.pathname.startsWith("/community")) {
+      return "community";
+    }
+    return "explore";
+  });
+
   const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [publishedArticles, setPublishedArticles] = useState<any[]>([]);
@@ -254,18 +268,42 @@ export default function App() {
               articlesLoading={loadingArticles}
             />
 
+            {/* Main Page "Advertise Your Business" Window */}
+            <AdvertiseWindow />
+
             {/* News Section */}
             <NewsSection onSelectArticle={(id) => setSelectedInterviewId(id)} />
           </div>
         );
       case "submit":
-        return <SubmitBlueprint />;
+        return (
+          <CommunityHub
+            user={user}
+            onRequestLogin={() => {
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            publishedArticles={publishedArticles.length > 0 ? publishedArticles : interviews}
+            initialTab="founders"
+          />
+        );
+
+      case "community":
+        return (
+          <CommunityHub
+            user={user}
+            onRequestLogin={() => {
+              // Scroll to header or trigger login
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            publishedArticles={publishedArticles.length > 0 ? publishedArticles : interviews}
+          />
+        );
 
       case "outreach":
         return <OutreachGenerator />;
 
       case "admin":
-        return <AdminDashboard />;
+        return <AdminGate />;
 
       default:
         return (

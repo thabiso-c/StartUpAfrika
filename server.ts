@@ -110,6 +110,13 @@ const SUBSCRIBERS_FILE = path.join(dataDir, "subscribers.json");
 const USERS_FILE = path.join(dataDir, "users.json");
 const SUBMISSIONS_FILE = path.join(dataDir, "submissions.json");
 const EMAIL_LOGS_FILE = path.join(dataDir, "email_logs.json");
+const ADVERTS_FILE = path.join(dataDir, "adverts.json");
+const AD_INQUIRIES_FILE = path.join(dataDir, "ad_inquiries.json");
+const COMMUNITY_TOPICS_FILE = path.join(dataDir, "community_topics.json");
+const COMMUNITY_COMMENTS_FILE = path.join(dataDir, "community_comments.json");
+const COMMUNITY_POLLS_FILE = path.join(dataDir, "community_polls.json");
+const COMMUNITY_CHALLENGES_FILE = path.join(dataDir, "community_challenges.json");
+const COMMUNITY_SUBMISSIONS_FILE = path.join(dataDir, "community_submissions.json");
 
 // Helper to load array from disk
 function loadJsonArray<T>(filePath: string, fallback: T[]): T[] {
@@ -296,12 +303,26 @@ if (!loadedArticles.some(a => a.id === SLYZAH_ARTICLE.id || (a.title && a.title.
 }
 const articles: Article[] = loadedArticles;
 
+const ADMIN_EMAIL = "letsokothabiso@gmail.com";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+
 function requireEditorToken(req: express.Request, res: express.Response, next: express.NextFunction) {
-  const token = req.headers["x-editor-token"] as string;
-  const validToken = crypto.createHmac("sha256", EDITOR_PASSWORD).update(EDITOR_EMAIL).digest("hex");
+  const token = (req.headers["x-editor-token"] as string) || (req.headers["x-admin-token"] as string);
+  const validEditorToken = crypto.createHmac("sha256", EDITOR_PASSWORD).update(EDITOR_EMAIL).digest("hex");
+  const validAdminToken = crypto.createHmac("sha256", ADMIN_PASSWORD).update(ADMIN_EMAIL).digest("hex");
+  
+  if (token && (token === validEditorToken || token === validAdminToken)) {
+    return next();
+  }
+  return res.status(401).json({ error: "Unauthorized" });
+}
+
+function requireAdminToken(req: express.Request, res: express.Response, next: express.NextFunction) {
+  const token = req.headers["x-admin-token"] as string;
+  const validToken = crypto.createHmac("sha256", ADMIN_PASSWORD).update(ADMIN_EMAIL).digest("hex");
   
   if (!token || token !== validToken) {
-    return res.status(401).json({ error: "Unauthorized" });
+    return res.status(401).json({ error: "Unauthorized: Only letsokothabiso@gmail.com is authorized as Admin." });
   }
   next();
 }
@@ -309,6 +330,120 @@ function requireEditorToken(req: express.Request, res: express.Response, next: e
 // Fallback arrays when Firestore is unavailable/disabled, loaded from disk
 const subscribers: Array<{ email: string; date: string; source?: string }> = loadJsonArray(SUBSCRIBERS_FILE, []);
 const users: Array<{ uid: string; email: string; name: string; picture: string; lastLogin: string; isDemo?: boolean }> = loadJsonArray(USERS_FILE, []);
+const adInquiries: Array<{ id: string; companyName: string; contactName: string; email: string; budget: string; message: string; date: string }> = loadJsonArray(AD_INQUIRIES_FILE, []);
+
+const DEFAULT_COMMUNITY_TOPICS: Array<any> = [];
+
+const DEFAULT_COMMUNITY_COMMENTS: Array<any> = [];
+
+const DEFAULT_COMMUNITY_POLLS = [
+  {
+    id: "poll_july_2026",
+    monthTitle: "🏆 July 2026 Featured Article of the Month Poll",
+    description: "Cast your vote as a registered member for the most inspiring African tech story featured on StartUpAfrika this month!",
+    options: [
+      {
+        articleId: "art_slyzah_building_thabiso",
+        title: "Building Slyzah: Thabiso's Journey Bootstrapping Tech in SA",
+        startupName: "Slyzah",
+        founderName: "Thabiso Letsoko",
+        votes: 0,
+        votedBy: []
+      }
+    ],
+    totalVotes: 0,
+    active: true
+  }
+];
+
+const DEFAULT_COMMUNITY_CHALLENGES = [
+  {
+    id: "challenge_ussd_parser",
+    title: "Mobile Money & USSD Payload Normalizer",
+    difficulty: "Intermediate",
+    category: "Fintech & Data Parsing",
+    points: 150,
+    description: "Write a function that parses raw USSD SMS/HTTP string payloads from MPesa or PayFast and extracts: amount (number), currency (string), transactionRef (string), and timestamp (ISO string).",
+    problemStatement: "Input format: 'Confirmed. R2,500.00 received from Thabiso for order #SA-9081 on 2026-07-26 14:00. Ref: MP-88902.'",
+    sampleInput: "Confirmed. R2,500.00 received from Thabiso for order #SA-9081 on 2026-07-26 14:00. Ref: MP-88902.",
+    expectedOutput: '{"amount": 2500, "currency": "ZAR", "transactionRef": "MP-88902"}',
+    initialTemplate: `function parseUSSDPayload(payload: string) {
+  // Extract amount, currency, and transactionRef
+  const amountMatch = payload.match(/(R|USD|KES)\\s*([0-9,.]+)/);
+  const refMatch = payload.match(/Ref:\\s*([A-Z0-9-]+)/i);
+
+  const currency = amountMatch ? (amountMatch[1] === "R" ? "ZAR" : amountMatch[1]) : "ZAR";
+  const amount = amountMatch ? parseFloat(amountMatch[2].replace(/,/g, "")) : 0;
+  const transactionRef = refMatch ? refMatch[1] : "REF-PENDING";
+
+  return { amount, currency, transactionRef };
+}`,
+    submissionCount: 0,
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: "challenge_offline_queue",
+    title: "Resilient Offline Sync Queue for Intermittent Networks",
+    difficulty: "Advanced",
+    category: "Architecture & Systems",
+    points: 250,
+    description: "Design an in-memory queue that buffers failed mutation jobs when network drops, deduplicates identical mutations by entityId, and retries with exponential backoff.",
+    problemStatement: "Implement processQueue(jobs, isOnline) returning processed job IDs and remaining pending buffer.",
+    sampleInput: "[{id: 'j1', entityId: 'art_1', action: 'UPVOTE'}, {id: 'j2', entityId: 'art_1', action: 'UPVOTE'}]",
+    expectedOutput: "Deduplicated job executed successfully",
+    initialTemplate: `function processOfflineQueue(queue: any[], isOnline: boolean) {
+  if (!isOnline) return { processed: [], pending: queue };
+  const uniqueJobs = Array.from(new Map(queue.map(j => [j.entityId, j])).values());
+  return { processed: uniqueJobs.map(j => j.id), pending: [] };
+}`,
+    submissionCount: 0,
+    createdAt: new Date().toISOString()
+  }
+];
+
+const communityTopics: Array<any> = loadJsonArray(COMMUNITY_TOPICS_FILE, DEFAULT_COMMUNITY_TOPICS);
+const communityComments: Array<any> = loadJsonArray(COMMUNITY_COMMENTS_FILE, DEFAULT_COMMUNITY_COMMENTS);
+const communityPolls: Array<any> = loadJsonArray(COMMUNITY_POLLS_FILE, DEFAULT_COMMUNITY_POLLS);
+const communityChallenges: Array<any> = loadJsonArray(COMMUNITY_CHALLENGES_FILE, DEFAULT_COMMUNITY_CHALLENGES);
+const communitySubmissions: Array<any> = loadJsonArray(COMMUNITY_SUBMISSIONS_FILE, []);
+
+// Overwrite saved files with cleaned arrays if they contained previous seed data
+if (fs.existsSync(COMMUNITY_TOPICS_FILE)) {
+  const fileContent = fs.readFileSync(COMMUNITY_TOPICS_FILE, "utf-8");
+  if (fileContent.includes("topic_welcome_2026") || fileContent.includes("Kofi Mensah")) {
+    saveJsonArray(COMMUNITY_TOPICS_FILE, DEFAULT_COMMUNITY_TOPICS);
+    communityTopics.length = 0;
+  }
+}
+if (fs.existsSync(COMMUNITY_COMMENTS_FILE)) {
+  const fileContent = fs.readFileSync(COMMUNITY_COMMENTS_FILE, "utf-8");
+  if (fileContent.includes("Sbusiso Ncube") || fileContent.includes("comm_1")) {
+    saveJsonArray(COMMUNITY_COMMENTS_FILE, DEFAULT_COMMUNITY_COMMENTS);
+    communityComments.length = 0;
+  }
+}
+if (fs.existsSync(COMMUNITY_POLLS_FILE)) {
+  const fileContent = fs.readFileSync(COMMUNITY_POLLS_FILE, "utf-8");
+  if (fileContent.includes("Kuda Bank") || fileContent.includes("145")) {
+    saveJsonArray(COMMUNITY_POLLS_FILE, DEFAULT_COMMUNITY_POLLS);
+    communityPolls.length = 0;
+    communityPolls.push(...DEFAULT_COMMUNITY_POLLS);
+  }
+}
+
+const DEFAULT_ADVERT_CONFIG = {
+  enabled: true,
+  title: "Advertise your business on StartUpAfrika",
+  subtitle: "Reach African tech founders, venture builders, investors, and decision makers.",
+  imageUrl: "/src/assets/images/advertise_startup_afrika.jpg",
+  ctaText: "Inquire / Book Ad Space",
+  ctaLink: "mailto:advertise@startupafrika.co.za?subject=Ad%20Space%20Inquiry%20-%20StartUpAfrika",
+  contactEmail: "advertise@startupafrika.co.za",
+  badgeText: "Partner & Sponsor Placement",
+  metrics: [],
+  packages: [],
+  updatedAt: new Date().toISOString(),
+};
 
 const submissions: Array<{
   id: string;
@@ -358,6 +493,378 @@ app.post("/api/editor/logout", (req, res) => {
   // Stateless logout: the client just deletes their token locally
   res.json({ success: true });
 });
+
+// ── Executive Admin Auth Routes ───────────────────────────────────────────────
+app.post("/api/admin/login", (req, res) => {
+  const { email, password } = req.body;
+  const normalizedEmail = String(email || "").trim().toLowerCase();
+
+  if (normalizedEmail !== ADMIN_EMAIL.toLowerCase()) {
+    return res.status(403).json({ error: "Access Denied: Only letsokothabiso@gmail.com is authorized to login as Admin." });
+  }
+
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: "Invalid password." });
+  }
+
+  const token = crypto.createHmac("sha256", ADMIN_PASSWORD).update(ADMIN_EMAIL).digest("hex");
+  res.json({ success: true, token, email: ADMIN_EMAIL });
+});
+
+app.post("/api/admin/verify", (req, res) => {
+  const { token } = req.body;
+  const validToken = crypto.createHmac("sha256", ADMIN_PASSWORD).update(ADMIN_EMAIL).digest("hex");
+  res.json({ valid: !!(token && token === validToken), email: ADMIN_EMAIL });
+});
+
+app.post("/api/admin/logout", (_req, res) => {
+  res.json({ success: true });
+});
+
+// ── Advert Window & Inquiries Routes ──────────────────────────────────────────
+app.get("/api/adverts", async (_req, res) => {
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+  if (db) {
+    try {
+      const doc = await db.collection("config").doc("adverts").get();
+      if (doc.exists) {
+        return res.json(doc.data());
+      }
+    } catch (e) {
+      console.warn("Firestore adverts fetch error, fallback to local:", e);
+    }
+  }
+
+  try {
+    if (fs.existsSync(ADVERTS_FILE)) {
+      const content = fs.readFileSync(ADVERTS_FILE, "utf-8");
+      return res.json(JSON.parse(content));
+    }
+  } catch (e) {
+    console.error("Error reading adverts file:", e);
+  }
+
+  res.json(DEFAULT_ADVERT_CONFIG);
+});
+
+app.post("/api/admin/adverts", requireAdminToken, async (req, res) => {
+  const config = { ...req.body, updatedAt: new Date().toISOString() };
+
+  try {
+    fs.writeFileSync(ADVERTS_FILE, JSON.stringify(config, null, 2), "utf-8");
+  } catch (e) {
+    console.error("Error writing adverts file:", e);
+  }
+
+  if (db) {
+    try {
+      await db.collection("config").doc("adverts").set(config, { merge: true });
+    } catch (e) {
+      console.error("Firestore adverts save error:", e);
+    }
+  }
+
+  res.json({ success: true, config });
+});
+
+app.post("/api/adverts/inquire", async (req, res) => {
+  const { companyName, contactName, email, budget, message } = req.body;
+  if (!companyName || !email) {
+    return res.status(400).json({ error: "Company Name and Email are required." });
+  }
+
+  const newInquiry = {
+    id: `inq_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    companyName: String(companyName).trim(),
+    contactName: String(contactName || "").trim(),
+    email: String(email).trim().toLowerCase(),
+    budget: String(budget || "R2,500 - R5,000"),
+    message: String(message || "").trim(),
+    date: new Date().toISOString(),
+  };
+
+  adInquiries.unshift(newInquiry);
+  saveJsonArray(AD_INQUIRIES_FILE, adInquiries);
+
+  if (db) {
+    try {
+      await db.collection("ad_inquiries").doc(newInquiry.id).set(newInquiry);
+    } catch (e) {
+      console.error("Firestore inquiry save error:", e);
+    }
+  }
+
+  res.json({ success: true, inquiry: newInquiry });
+});
+
+app.get("/api/admin/inquiries", requireAdminToken, async (_req, res) => {
+  if (db) {
+    try {
+      const snapshot = await db.collection("ad_inquiries").get();
+      const docs = snapshot.docs.map((doc) => doc.data());
+      if (docs.length > 0) {
+        docs.sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+        return res.json(docs);
+      }
+    } catch (e) {
+      console.error("Firestore ad_inquiries error:", e);
+    }
+  }
+  adInquiries.sort((a: any, b: any) => new Date(b.date || 0).getTime() - new Date(a.date || 0).getTime());
+  res.json(adInquiries);
+});
+
+app.delete("/api/admin/inquiries/:id", requireAdminToken, async (req, res) => {
+  const { id } = req.params;
+  const index = adInquiries.findIndex((i) => i.id === id);
+  if (index !== -1) {
+    adInquiries.splice(index, 1);
+    saveJsonArray(AD_INQUIRIES_FILE, adInquiries);
+  }
+  if (db) {
+    try {
+      await db.collection("ad_inquiries").doc(id).delete();
+    } catch (e) {
+      console.error("Firestore inquiry delete error:", e);
+    }
+  }
+  res.json({ success: true });
+});
+
+// ── Community Platform Routes ──────────────────────────────────────────────────
+app.get("/api/community/topics", (_req, res) => {
+  const sorted = [...communityTopics].sort((a, b) => {
+    if (a.isPinned && !b.isPinned) return -1;
+    if (!a.isPinned && b.isPinned) return 1;
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+  res.json(sorted);
+});
+
+app.post("/api/community/topics", (req, res) => {
+  const { title, content, category, tags, authorName, authorEmail, authorAvatar, authorRole, codeSnippet, codeLanguage } = req.body;
+  
+  if (!title || !content || !category || !authorName || !authorEmail) {
+    return res.status(400).json({ error: "Missing required fields for community topic creation." });
+  }
+
+  const newTopic = {
+    id: `topic_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    title: String(title).trim(),
+    content: String(content).trim(),
+    category,
+    tags: Array.isArray(tags) ? tags : ["Tech"],
+    authorName: String(authorName).trim(),
+    authorEmail: String(authorEmail).trim(),
+    authorAvatar: authorAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(authorEmail)}`,
+    authorRole: authorRole || "Member Founder",
+    codeSnippet: codeSnippet ? String(codeSnippet).trim() : undefined,
+    codeLanguage: codeLanguage || "typescript",
+    upvotes: 1,
+    downvotes: 0,
+    upvotedBy: [authorEmail],
+    downvotedBy: [],
+    commentCount: 0,
+    isPinned: false,
+    createdAt: new Date().toISOString(),
+  };
+
+  communityTopics.unshift(newTopic);
+  saveJsonArray(COMMUNITY_TOPICS_FILE, communityTopics);
+
+  if (db) {
+    try {
+      db.collection("community_topics").doc(newTopic.id).set(newTopic);
+    } catch (e) {
+      console.error("Firestore topic save error:", e);
+    }
+  }
+
+  res.json({ success: true, topic: newTopic });
+});
+
+app.post("/api/community/topics/:id/vote", (req, res) => {
+  const { id } = req.params;
+  const { userEmail, voteType } = req.body; // 'up' or 'down'
+
+  if (!userEmail) {
+    return res.status(400).json({ error: "User email required to register vote." });
+  }
+
+  const topic = communityTopics.find((t) => t.id === id);
+  if (!topic) {
+    return res.status(404).json({ error: "Topic not found" });
+  }
+
+  if (!topic.upvotedBy) topic.upvotedBy = [];
+  if (!topic.downvotedBy) topic.downvotedBy = [];
+
+  const hasUpvoted = topic.upvotedBy.includes(userEmail);
+  const hasDownvoted = topic.downvotedBy.includes(userEmail);
+
+  if (voteType === "up") {
+    if (hasUpvoted) {
+      // Toggle off upvote
+      topic.upvotedBy = topic.upvotedBy.filter((e: string) => e !== userEmail);
+      topic.upvotes = Math.max(0, topic.upvotes - 1);
+    } else {
+      // Remove downvote if exists
+      if (hasDownvoted) {
+        topic.downvotedBy = topic.downvotedBy.filter((e: string) => e !== userEmail);
+        topic.downvotes = Math.max(0, topic.downvotes - 1);
+      }
+      topic.upvotedBy.push(userEmail);
+      topic.upvotes += 1;
+    }
+  } else if (voteType === "down") {
+    if (hasDownvoted) {
+      topic.downvotedBy = topic.downvotedBy.filter((e: string) => e !== userEmail);
+      topic.downvotes = Math.max(0, topic.downvotes - 1);
+    } else {
+      if (hasUpvoted) {
+        topic.upvotedBy = topic.upvotedBy.filter((e: string) => e !== userEmail);
+        topic.upvotes = Math.max(0, topic.upvotes - 1);
+      }
+      topic.downvotedBy.push(userEmail);
+      topic.downvotes += 1;
+    }
+  }
+
+  saveJsonArray(COMMUNITY_TOPICS_FILE, communityTopics);
+  res.json({ success: true, topic });
+});
+
+app.get("/api/community/topics/:id/comments", (req, res) => {
+  const { id } = req.params;
+  const comments = communityComments.filter((c) => c.topicId === id);
+  comments.sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  res.json(comments);
+});
+
+app.post("/api/community/topics/:id/comments", (req, res) => {
+  const { id } = req.params;
+  const { content, authorName, authorEmail, authorAvatar, authorRole, codeSnippet } = req.body;
+
+  if (!content || !authorName || !authorEmail) {
+    return res.status(400).json({ error: "Missing required fields for comment." });
+  }
+
+  const topic = communityTopics.find((t) => t.id === id);
+  if (!topic) {
+    return res.status(404).json({ error: "Topic not found" });
+  }
+
+  const newComment = {
+    id: `comm_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    topicId: id,
+    content: String(content).trim(),
+    codeSnippet: codeSnippet ? String(codeSnippet).trim() : undefined,
+    authorName: String(authorName).trim(),
+    authorEmail: String(authorEmail).trim(),
+    authorAvatar: authorAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(authorEmail)}`,
+    authorRole: authorRole || "Member",
+    upvotes: 0,
+    upvotedBy: [],
+    createdAt: new Date().toISOString()
+  };
+
+  communityComments.push(newComment);
+  saveJsonArray(COMMUNITY_COMMENTS_FILE, communityComments);
+
+  topic.commentCount = (topic.commentCount || 0) + 1;
+  saveJsonArray(COMMUNITY_TOPICS_FILE, communityTopics);
+
+  res.json({ success: true, comment: newComment, commentCount: topic.commentCount });
+});
+
+app.post("/api/community/comments/:id/vote", (req, res) => {
+  const { id } = req.params;
+  const { userEmail } = req.body;
+
+  const comment = communityComments.find((c) => c.id === id);
+  if (!comment) return res.status(404).json({ error: "Comment not found" });
+
+  if (!comment.upvotedBy) comment.upvotedBy = [];
+  if (comment.upvotedBy.includes(userEmail)) {
+    comment.upvotedBy = comment.upvotedBy.filter((e: string) => e !== userEmail);
+    comment.upvotes = Math.max(0, comment.upvotes - 1);
+  } else {
+    comment.upvotedBy.push(userEmail);
+    comment.upvotes += 1;
+  }
+
+  saveJsonArray(COMMUNITY_COMMENTS_FILE, communityComments);
+  res.json({ success: true, comment });
+});
+
+app.get("/api/community/polls", (_req, res) => {
+  res.json(communityPolls);
+});
+
+app.post("/api/community/polls/:id/vote", (req, res) => {
+  const { id } = req.params;
+  const { articleId, userEmail } = req.body;
+
+  if (!userEmail) return res.status(400).json({ error: "User email required to vote in poll." });
+
+  const poll = communityPolls.find((p) => p.id === id);
+  if (!poll) return res.status(404).json({ error: "Poll not found" });
+
+  // Remove previous vote if any option had userEmail
+  poll.options.forEach((opt: any) => {
+    if (!opt.votedBy) opt.votedBy = [];
+    if (opt.votedBy.includes(userEmail)) {
+      opt.votedBy = opt.votedBy.filter((e: string) => e !== userEmail);
+      opt.votes = Math.max(0, opt.votes - 1);
+    }
+  });
+
+  const selectedOpt = poll.options.find((opt: any) => opt.articleId === articleId);
+  if (selectedOpt) {
+    if (!selectedOpt.votedBy) selectedOpt.votedBy = [];
+    selectedOpt.votedBy.push(userEmail);
+    selectedOpt.votes += 1;
+  }
+
+  poll.totalVotes = poll.options.reduce((acc: number, opt: any) => acc + opt.votes, 0);
+  saveJsonArray(COMMUNITY_POLLS_FILE, communityPolls);
+
+  res.json({ success: true, poll });
+});
+
+app.get("/api/community/challenges", (_req, res) => {
+  res.json(communityChallenges);
+});
+
+app.post("/api/community/challenges/:id/submit", (req, res) => {
+  const { id } = req.params;
+  const { code, authorName, authorEmail, authorAvatar } = req.body;
+
+  if (!code || !authorEmail) return res.status(400).json({ error: "Code and email required." });
+
+  const challenge = communityChallenges.find((c) => c.id === id);
+  if (!challenge) return res.status(404).json({ error: "Challenge not found" });
+
+  const submission = {
+    id: `sub_${Date.now()}`,
+    challengeId: id,
+    authorName: authorName || "Dev Member",
+    authorEmail,
+    authorAvatar: authorAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(authorEmail)}`,
+    code: String(code).trim(),
+    status: "PASSED",
+    submittedAt: new Date().toISOString()
+  };
+
+  communitySubmissions.unshift(submission);
+  saveJsonArray(COMMUNITY_SUBMISSIONS_FILE, communitySubmissions);
+
+  challenge.submissionCount = (challenge.submissionCount || 0) + 1;
+  saveJsonArray(COMMUNITY_CHALLENGES_FILE, communityChallenges);
+
+  res.json({ success: true, submission, submissionCount: challenge.submissionCount });
+});
+
 
 // ── Editor Articles Routes ────────────────────────────────────────────────────
 app.get("/api/editor/articles", requireEditorToken, async (_req, res) => {
@@ -1439,10 +1946,10 @@ async function startServer() {
     });
   }
 
-  // Only bind a port when running as a standalone process (local dev or non-Vercel host).
+  // Only bind a port when running as a standalone process (local dev or Cloud Run).
   // On Vercel, api/index.ts exports the Express app as a serverless handler —
   // calling app.listen() there would start a competing HTTP server and break responses.
-  if (!process.env.VERCEL && !process.env.K_SERVICE) {
+  if (!process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`[Startup Afrika Server] running on http://localhost:${PORT}`);
     });

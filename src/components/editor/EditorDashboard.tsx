@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { PlusCircle, FileText, CheckCircle, LogOut, Trash2, Clock, LayoutDashboard } from "lucide-react";
+import { PlusCircle, FileText, CheckCircle, LogOut, Trash2, Clock, LayoutDashboard, RefreshCw } from "lucide-react";
 import ArticleEditor from "./ArticleEditor";
 import logo from "../../assets/images/logo.png";
 
@@ -25,14 +25,19 @@ interface Article {
 interface Props {
   token: string;
   onLogout: () => void;
+  isEmbedded?: boolean;
 }
 
-export default function EditorDashboard({ token, onLogout }: Props) {
+export default function EditorDashboard({ token, onLogout, isEmbedded = false }: Props) {
   const [articles, setArticles] = useState<Article[]>([]);
   const [activeArticle, setActiveArticle] = useState<Article | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const headers = { "x-editor-token": token, "Content-Type": "application/json" };
+  const headers = { 
+    "x-editor-token": token,
+    "x-admin-token": token,
+    "Content-Type": "application/json"
+  };
 
   const fetchArticles = async () => {
     setLoading(true);
@@ -164,7 +169,7 @@ export default function EditorDashboard({ token, onLogout }: Props) {
   const formatDate = (iso: string) => new Date(iso).toLocaleDateString("en-ZA", { day: "numeric", month: "short", year: "numeric" });
 
   return (
-    <div className="h-screen flex bg-[#0e1310]" style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
+    <div className={`${isEmbedded ? "h-[750px]" : "h-screen"} flex bg-[#0e1310]`} style={{ fontFamily: "'Inter', 'Segoe UI', sans-serif" }}>
       {/* ── Sidebar ── */}
       <aside className="w-72 flex-shrink-0 flex flex-col bg-[#0a0f0d] border-r border-white/8">
         {/* Brand */}
@@ -192,7 +197,7 @@ export default function EditorDashboard({ token, onLogout }: Props) {
         {/* Nav label */}
         <div className="px-5 py-2 flex items-center gap-2">
           <LayoutDashboard className="w-3.5 h-3.5 text-white/30" />
-          <span className="text-white/30 text-xs font-semibold uppercase tracking-widest">Drafts</span>
+          <span className="text-white/30 text-xs font-semibold uppercase tracking-widest">Articles & Drafts</span>
         </div>
 
         {/* Articles List */}
@@ -244,15 +249,25 @@ export default function EditorDashboard({ token, onLogout }: Props) {
           )}
         </div>
 
-        {/* Logout */}
+        {/* Footer Actions */}
         <div className="px-4 py-4 border-t border-white/8">
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 text-white/30 hover:text-red-400 text-xs font-medium py-2 rounded-lg transition-all hover:bg-red-500/10"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            Sign Out
-          </button>
+          {!isEmbedded ? (
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center justify-center gap-2 text-white/30 hover:text-red-400 text-xs font-medium py-2 rounded-lg transition-all hover:bg-red-500/10"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              Sign Out
+            </button>
+          ) : (
+            <button
+              onClick={fetchArticles}
+              className="w-full flex items-center justify-center gap-2 text-white/40 hover:text-emerald-400 text-xs font-medium py-2 rounded-lg transition-all hover:bg-emerald-500/10"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Sync Articles ({articles.length})
+            </button>
+          )}
         </div>
       </aside>
 
