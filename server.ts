@@ -110,6 +110,7 @@ const SUBSCRIBERS_FILE = path.join(dataDir, "subscribers.json");
 const USERS_FILE = path.join(dataDir, "users.json");
 const SUBMISSIONS_FILE = path.join(dataDir, "submissions.json");
 const EMAIL_LOGS_FILE = path.join(dataDir, "email_logs.json");
+const EMAILS_FILE = path.join(dataDir, "emails.json");
 const ADVERTS_FILE = path.join(dataDir, "adverts.json");
 const AD_INQUIRIES_FILE = path.join(dataDir, "ad_inquiries.json");
 const COMMUNITY_TOPICS_FILE = path.join(dataDir, "community_topics.json");
@@ -1990,6 +1991,201 @@ app.get("/api/admin/email-logs", async (req: express.Request, res: express.Respo
     console.error("Failed to fetch email logs:", error);
     res.status(500).json({ error: "Failed to fetch email logs" });
   }
+});
+
+// ── Email Client Routes ───────────────────────────────────────────────────────
+interface Email {
+  id: string;
+  account: string; // which email account
+  folder: "inbox" | "sent" | "drafts" | "trash";
+  from: string;
+  to: string;
+  cc?: string;
+  bcc?: string;
+  subject: string;
+  body: string;
+  htmlBody?: string;
+  isRead: boolean;
+  isStarred: boolean;
+  labels: string[];
+  attachments: Array<{ name: string; size: number; type: string }>;
+  threadId?: string;
+  inReplyTo?: string;
+  createdAt: string;
+  updatedAt: string;
+  sentAt?: string;
+}
+
+const emails: Email[] = loadJsonArray(EMAILS_FILE, []);
+
+// Get emails for an account/folder
+app.get("/api/admin/emails", requireAdminToken, (req: express.Request, res: express.Response) => {
+  const account = String(req.query.account || "adverts@startupafrika.co.za");
+  const folder = String(req.query.folder || "inbox") as Email["folder"] | "all";
+  
+  const filtered = emails.filter(e => 
+    e.account === account && 
+    (folder === "all" || e.folder === folder)
+  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  
+  res.json(filtered);
+});
+
+// Send email
+app.post("/api/admin/emails/send", requireAdminToken, async (req: express.Request, res: express.Response) => {
+  const { account, to, cc, bcc, subject, body, htmlBody, threadId, inReplyTo } = req.body;
+  
+  if (!account || !to || !subject || !body) {
+    return res.status(400).json({ error: "Missing required fields: account, to, subject, body" });
+  }
+
+  const now = new Date().toISOString();
+  const sentEmail: Email = {
+    id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    account,
+    folder: "sent",
+    from: account,
+    to: Array.isArray(to) ? to.join(", ") : to,
+    cc: cc ? (Array.isArray(cc) ? cc.join(", ") : cc) : undefined,
+    bcc: bcc ? (Array.isArray(bcc) ? bcc.join(", ") : bcc) : undefined,
+    subject,
+    body,
+    htmlBody,
+    isRead: true,
+    isStarred: false,
+    labels: [],
+    attachments: [],
+    threadId,
+    inReplyTo,
+    createdAt: now,
+    updatedAt: now,
+    sentAt: now,
+  };
+
+  emails.unshift(sentEmail);
+  saveJsonArray(EMAILS_FILE, emails);
+
+  // Send via Resend if configured
+  if (resend && process.env.RESEND_API_KEY) {
+    try {
+      await resend.emails.send({
+        from: account,
+        to: Array.isArray(to) ? to : [to],
+        cc: cc ? (Array.isArray(cc) ? cc : [cc]) : undefined,
+        bcc: bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : undefined,
+        subject,
+        text: body,
+        html: htmlBody || body.replace(/\n/g, "<br>"),
+      });
+      console.log(`Email sent from ${account} to ${to}: ${subject}`);
+    } catch (err) {
+      console.error("Resend send error:", err);
+    }
+  }
+
+  res.json({ success: true, email: sentEmail });
+});
+
+// Save draft
+app.post("/api/admin/emails/draft", requireAdminToken, (req: express.Request, res: express.Response) => {
+  const { account, to, cc, bcc, subject, body, htmlBody } = req.body;
+  
+  const draft: Email = {
+    id: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    account: account || "adverts@startupafrika.co.za",
+    folder: "drafts",
+    from: account || "adverts@startupafrika.co.za",
+    to: to || "",
+    cc: cc || undefined,
+    bcc: bcc || undefined,
+    subject: subject || "(No subject)",
+    body: body || "",
+    htmlBody,
+    isRead: true,
+    isStarred: false,
+    labels: ["draft"],
+    attachments: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  emails.unshift(draft);
+  saveJsonArray(EMAILS_FILE, emails);
+  res.json({ success: true, email: draft });
+});
+
+// Update email (move to folder, star, mark read, etc.)
+app.put("/api/admin/emails/:id", requireAdminToken, (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  const { folder, isRead, isStarred, labels } = req.body;
+  
+  const idx = emails.findIndex(e => e.id === id);
+  if (idx === -1) {
+    return res.status(404).json({ error: "Email not found" });
+  }
+
+  if (folder) emails[idx].folder = folder;
+  if (typeof isRead === "boolean") emails[idx].isRead = isRead;
+  if (typeof isStarred === "boolean") emails[idx].isStarred = isStarred;
+  if (labels) emails[idx].labels = labels;
+  emails[idx].updatedAt = new Date().toISOString();
+
+  saveJsonArray(EMAILS_FILE, emails);
+  res.json({ success: true, email: emails[idx] });
+});
+
+// Delete email (move to trash)
+app.delete("/api/admin/emails/:id", requireAdminToken, (req: express.Request, res: express.Response) => {
+  const { id } = req.params;
+  const idx = emails.findIndex(e => e.id === id);
+  
+  if (idx === -1) {
+    return res.status(404).json({ error: "Email not found" });
+  }
+
+  if (emails[idx].folder === "trash") {
+    // Permanently delete
+    emails.splice(idx, 1);
+  } else {
+    // Move to trash
+    emails[idx].folder = "trash";
+    emails[idx].updatedAt = new Date().toISOString();
+  }
+
+  saveJsonArray(EMAILS_FILE, emails);
+  res.json({ success: true });
+});
+
+// Receive email (simulate incoming email)
+app.post("/api/admin/emails/receive", requireAdminToken, (req: express.Request, res: express.Response) => {
+  const { account, from, to, cc, bcc, subject, body, htmlBody } = req.body;
+  
+  if (!account || !from || !subject || !body) {
+    return res.status(400).json({ error: "Missing required fields" });
+  }
+
+  const receivedEmail: Email = {
+    id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+    account,
+    folder: "inbox",
+    from,
+    to: Array.isArray(to) ? to.join(", ") : (to || account),
+    cc: cc ? (Array.isArray(cc) ? cc.join(", ") : cc) : undefined,
+    bcc: bcc ? (Array.isArray(bcc) ? bcc.join(", ") : bcc) : undefined,
+    subject,
+    body,
+    htmlBody,
+    isRead: false,
+    isStarred: false,
+    labels: ["inbox"],
+    attachments: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  emails.unshift(receivedEmail);
+  saveJsonArray(EMAILS_FILE, emails);
+  res.json({ success: true, email: receivedEmail });
 });
 
 // Global Error Handler

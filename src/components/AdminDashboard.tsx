@@ -3,6 +3,7 @@ import { Users, FileText, Download, Calendar, Mail, CheckCircle2, ChevronRight, 
 import { Subscriber, Submission } from "../types";
 import adBannerImg from "../assets/images/advertise_startup_afrika.jpg";
 import EditorDashboard from "./editor/EditorDashboard";
+import EmailClient from "./EmailClient";
 
 interface EmailLog {
   id: string;
@@ -40,7 +41,7 @@ interface AdInquiry {
 }
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<"subscribers" | "adverts" | "inquiries" | "submissions" | "editor" | "emails">("subscribers");
+  const [activeTab, setActiveTab] = useState<"subscribers" | "adverts" | "inquiries" | "submissions" | "editor" | "emails" | "email-client">("subscribers");
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [inquiries, setInquiries] = useState<AdInquiry[]>([]);
@@ -352,6 +353,21 @@ export default function AdminDashboard() {
           >
             <MailOpen className="w-4 h-4" />
             <span>Email Logs ({emailLogs.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("email-client");
+              setSelectedSubmission(null);
+            }}
+            className={`pb-3 text-sm font-semibold transition-all relative flex items-center gap-1.5 ${
+              activeTab === "email-client"
+                ? "text-emerald-700 font-bold border-b-2 border-emerald-600"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            <Mail className="w-4 h-4" />
+            <span>Email Client</span>
           </button>
         </div>
 
@@ -692,6 +708,11 @@ export default function AdminDashboard() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ── 6. EMAIL CLIENT PANEL ── */}
+      {!selectedSubmission && activeTab === "email-client" && (
+        <EmailClient />
       )}
 
       {/* ── 5. EDITORIAL WORKSPACE PANEL ── */}
