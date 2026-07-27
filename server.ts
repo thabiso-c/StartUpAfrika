@@ -2064,7 +2064,25 @@ app.post("/api/admin/emails/send", requireAdminToken, upload.array("attachments"
         ? finalHtml 
         : `${finalHtml}<br><br>${signature}`;
       
-      await resend.emails.send({
+      // Process attachments for Resend
+      const resendAttachments: any[] = [];
+      if (uploadedFiles && uploadedFiles.length > 0) {
+        for (const file of uploadedFiles) {
+          try {
+            const fileContent = fs.readFileSync(file.path);
+            const base64Content = fileContent.toString("base64");
+            resendAttachments.push({
+              filename: file.originalname,
+              content: base64Content,
+            });
+            console.log(`[Attachment] Prepared ${file.originalname} (${(file.size / 1024).toFixed(1)} KB) for sending`);
+          } catch (fileErr) {
+            console.error(`[Attachment] Failed to read file ${file.originalname}:`, fileErr);
+          }
+        }
+      }
+      
+      const emailPayload: any = {
         from: account,
         to: Array.isArray(to) ? to : [to],
         cc: cc ? (Array.isArray(cc) ? cc : [cc]) : undefined,
@@ -2080,8 +2098,15 @@ app.post("/api/admin/emails/send", requireAdminToken, upload.array("attachments"
           'Importance': 'high',
         },
         replyTo: account,
-      });
-      console.log(`Email sent from ${account} to ${to}: ${subject}`);
+      };
+      
+      // Add attachments if present
+      if (resendAttachments.length > 0) {
+        emailPayload.attachments = resendAttachments;
+      }
+      
+      await resend.emails.send(emailPayload);
+      console.log(`Email sent from ${account} to ${to}: ${subject}${resendAttachments.length > 0 ? ` (with ${resendAttachments.length} attachment(s))` : ""}`);
     } catch (err) {
       console.error("Resend send error:", err);
     }
