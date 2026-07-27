@@ -216,21 +216,6 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const app = express();
 const PORT = 3000;
 
-// Capture raw body for webhooks BEFORE express.json() processes it
-app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
-  if (req.headers["content-type"]?.includes("application/json") && !(req as any).rawBody) {
-    const chunks: Buffer[] = [];
-    req.on("data", (chunk: Buffer) => chunks.push(chunk));
-    req.on("end", () => {
-      const rawBody = Buffer.concat(chunks);
-      (req as any).rawBody = rawBody;
-      next();
-    });
-  } else {
-    next();
-  }
-});
-
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
