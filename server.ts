@@ -304,7 +304,7 @@ if (!loadedArticles.some(a => a.id === SLYZAH_ARTICLE.id || (a.title && a.title.
 const articles: Article[] = loadedArticles;
 
 const ADMIN_EMAIL = "letsokothabiso@gmail.com";
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "admin123";
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "startupafrika";
 
 function requireEditorToken(req: express.Request, res: express.Response, next: express.NextFunction) {
   const token = (req.headers["x-editor-token"] as string) || (req.headers["x-admin-token"] as string);
