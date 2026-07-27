@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ArrowLeft, MapPin, Calendar, Cpu, Zap, Hammer, Code2, TrendingUp, DollarSign, AlertTriangle, ShieldCheck, Share2 } from "lucide-react";
 import { Interview } from "../types";
+import { detectCountryFromLocation, getFlagImageUrl } from "../utils/countryFlags";
 
 interface InterviewDetailProps {
   interview: Interview;
@@ -165,9 +166,15 @@ export default function InterviewDetail({ interview, onBack }: InterviewDetailPr
               <span className={`text-xs font-mono font-bold tracking-wider uppercase px-2.5 py-1 rounded-md border ${scheme.badge}`}>
                 {interview.startupName} Blueprint
               </span>
-              <span className="text-xs text-gray-400 font-mono flex items-center gap-1">
+              <span className="text-xs text-gray-400 font-mono flex items-center gap-1.5">
                 <MapPin className="w-3.5 h-3.5" />
-                {interview.location}
+                {(() => {
+                  const countryInfo = detectCountryFromLocation(interview.location || "");
+                  if (countryInfo) {
+                    return <>{countryInfo.flag} {interview.location}</>;
+                  }
+                  return <>{interview.location}</>;
+                })()}
               </span>
             </div>
 
