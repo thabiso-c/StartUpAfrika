@@ -32,6 +32,7 @@ export interface Interview {
 export interface Subscriber {
   email: string;
   date: string;
+  source?: string;
 }
 
 export interface Submission {

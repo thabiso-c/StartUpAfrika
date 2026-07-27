@@ -1,8 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { Users, FileText, Download, Calendar, Mail, CheckCircle2, ChevronRight, Inbox, RefreshCw, Megaphone, Sparkles, Save, Eye, Layers, DollarSign, Send, Check, Trash2, Search, Edit3 } from "lucide-react";
+import { Users, FileText, Download, Calendar, Mail, CheckCircle2, ChevronRight, Inbox, RefreshCw, Megaphone, Sparkles, Save, Eye, Layers, DollarSign, Send, Check, Trash2, Search, Edit3, MailOpen } from "lucide-react";
 import { Subscriber, Submission } from "../types";
 import adBannerImg from "../assets/images/advertise_startup_afrika.jpg";
 import EditorDashboard from "./editor/EditorDashboard";
+
+interface EmailLog {
+  id: string;
+  to: string;
+  from: string;
+  subject: string;
+  status: "delivered" | "bounced" | "failed" | "sent";
+  timestamp: string;
+  event: string;
+  resendId?: string;
+}
 
 interface AdvertConfig {
   enabled: boolean;
@@ -29,10 +40,11 @@ interface AdInquiry {
 }
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState<"subscribers" | "adverts" | "inquiries" | "submissions" | "editor">("subscribers");
+  const [activeTab, setActiveTab] = useState<"subscribers" | "adverts" | "inquiries" | "submissions" | "editor" | "emails">("subscribers");
   const [subscribers, setSubscribers] = useState<Subscriber[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [inquiries, setInquiries] = useState<AdInquiry[]>([]);
+  const [emailLogs, setEmailLogs] = useState<EmailLog[]>([]);
   const [searchSubscriber, setSearchSubscriber] = useState("");
   const [searchInquiry, setSearchInquiry] = useState("");
   const [loading, setLoading] = useState(false);
@@ -58,11 +70,14 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [subsRes, submsRes, adRes, inqRes] = await Promise.all([
+      const [subsRes, submsRes, adRes, inqRes, emailRes] = await Promise.all([
         fetch("/api/subscribers"),
         fetch("/api/submissions"),
         fetch("/api/adverts"),
         fetch("/api/admin/inquiries", {
+          headers: { "x-admin-token": localStorage.getItem("sa_admin_token") || "" }
+        }).catch(() => null),
+        fetch("/api/admin/email-logs", {
           headers: { "x-admin-token": localStorage.getItem("sa_admin_token") || "" }
         }).catch(() => null),
       ]);
@@ -88,6 +103,10 @@ export default function AdminDashboard() {
       if (inqRes && inqRes.ok) {
         const inqData = await inqRes.json();
         setInquiries(inqData);
+      }
+      if (emailRes && emailRes.ok) {
+        const emailData = await emailRes.json();
+        setEmailLogs(emailData);
       }
     } catch (err) {
       console.error("Failed to load admin dashboard statistics", err);
@@ -318,6 +337,21 @@ export default function AdminDashboard() {
           >
             <FileText className="w-4 h-4" />
             <span>Story Submissions ({submissions.length})</span>
+          </button>
+
+          <button
+            onClick={() => {
+              setActiveTab("emails");
+              setSelectedSubmission(null);
+            }}
+            className={`pb-3 text-sm font-semibold transition-all relative flex items-center gap-1.5 ${
+              activeTab === "emails"
+                ? "text-emerald-700 font-bold border-b-2 border-emerald-600"
+                : "text-gray-500 hover:text-gray-800"
+            }`}
+          >
+            <MailOpen className="w-4 h-4" />
+            <span>Email Logs ({emailLogs.length})</span>
           </button>
         </div>
 
@@ -668,6 +702,70 @@ export default function AdminDashboard() {
             onLogout={() => {}}
             isEmbedded={true}
           />
+        </div>
+      )}
+
+      {/* ── 5. EMAIL LOGS PANEL ── */}
+      {!selectedSubmission && activeTab === "emails" && (
+        <div className="bg-white border border-gray-200 rounded-2xl shadow-sm overflow-hidden animate-fade-in" id="panel-emails">
+          <div className="p-4 bg-gray-50 border-b border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+              <h3 className="text-sm font-bold text-gray-900">Resend Email Webhook Logs</h3>
+              <p className="text-xs text-gray-500 mt-0.5">Real-time email delivery events from Resend via webhook</p>
+            </div>
+            <button
+              onClick={fetchData}
+              disabled={loading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-lg transition-colors border border-emerald-200"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </button>
+          </div>
+
+          {emailLogs.length === 0 ? (
+            <div className="p-12 text-center text-gray-400">
+              <MailOpen className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+              <p className="text-sm font-medium">No email logs yet</p>
+              <p className="text-xs text-gray-400 mt-1">Emails sent via Resend will appear here automatically</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm text-gray-500">
+                <thead className="text-[11px] text-gray-500 font-mono uppercase bg-gray-50/80 border-b border-gray-100">
+                  <tr>
+                    <th className="px-6 py-3.5">Status</th>
+                    <th className="px-6 py-3.5">Recipient</th>
+                    <th className="px-6 py-3.5">Subject</th>
+                    <th className="px-6 py-3.5">Event</th>
+                    <th className="px-6 py-3.5">Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100 font-mono text-xs">
+                  {emailLogs.map((log, idx) => (
+                    <tr key={idx} className="hover:bg-gray-50/50 transition-colors">
+                      <td className="px-6 py-3.5">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold ${
+                          log.status === "delivered" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
+                          log.status === "bounced" ? "bg-amber-50 text-amber-700 border border-amber-200" :
+                          log.status === "failed" ? "bg-rose-50 text-rose-700 border border-rose-200" :
+                          "bg-gray-50 text-gray-700 border border-gray-200"
+                        }`}>
+                          {log.status}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3.5 font-sans font-semibold text-gray-900">{log.to}</td>
+                      <td className="px-6 py-3.5 text-gray-600 max-w-xs truncate">{log.subject}</td>
+                      <td className="px-6 py-3.5 text-gray-500">{log.event}</td>
+                      <td className="px-6 py-3.5 text-gray-400">
+                        {log.timestamp ? new Date(log.timestamp).toLocaleString() : "N/A"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

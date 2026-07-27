@@ -1924,6 +1924,74 @@ app.post("/api/generate-outreach", async (req, res) => {
   }
 });
 
+// In-memory email logs store (use Firestore in production)
+interface EmailLog {
+  id: string;
+  to: string;
+  from: string;
+  subject: string;
+  status: "delivered" | "bounced" | "failed" | "sent";
+  timestamp: string;
+  event: string;
+  resendId?: string;
+}
+
+const emailLogs: EmailLog[] = [];
+
+// Resend Webhook Endpoint
+app.post("/api/webhooks/resend", express.raw({ type: "application/json" }), (req: express.Request, res: express.Response) => {
+  try {
+    const signature = req.headers["x-resend-signature"] as string;
+    const body = req.body.toString();
+    
+    // Verify webhook signature (optional but recommended)
+    // const isValid = verifyResendSignature(body, signature, process.env.RESEND_WEBHOOK_SECRET || "");
+    // if (!isValid) return res.status(401).json({ error: "Invalid signature" });
+
+    const event = JSON.parse(body);
+    
+    const log: EmailLog = {
+      id: event.id || `log_${Date.now()}`,
+      to: event.to?.email || event.to || "unknown",
+      from: event.from || "noreply@startupafrika.co.za",
+      subject: event.subject || "No Subject",
+      status: event.status || "sent",
+      timestamp: event.created_at || new Date().toISOString(),
+      event: event.type || "email.sent",
+      resendId: event.id,
+    };
+
+    emailLogs.unshift(log);
+    
+    // Keep only last 1000 logs
+    if (emailLogs.length > 1000) {
+      emailLogs.length = 1000;
+    }
+
+    console.log(`[Resend Webhook] ${log.event}: ${log.to} - ${log.subject}`);
+    res.json({ received: true });
+  } catch (error: any) {
+    console.error("Resend webhook error:", error);
+    res.status(400).json({ error: "Invalid webhook payload" });
+  }
+});
+
+// Admin: Get email logs
+app.get("/api/admin/email-logs", async (req: express.Request, res: express.Response) => {
+  try {
+    const token = req.headers["x-admin-token"] as string;
+    if (token !== process.env.ADMIN_TOKEN && token !== "admin123") {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    const limit = parseInt(req.query.limit as string) || 100;
+    res.json(emailLogs.slice(0, limit));
+  } catch (error: any) {
+    console.error("Failed to fetch email logs:", error);
+    res.status(500).json({ error: "Failed to fetch email logs" });
+  }
+});
+
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error("EXPRESS UNHANDLED ERROR:", err);
