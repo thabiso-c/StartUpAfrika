@@ -1783,13 +1783,13 @@ setInterval(async () => {
 async function getExistingNewsArticles(): Promise<any[]> {
   if (db) {
     try {
+      // Use a simple query without composite index requirements.
+      // Fetch published articles and filter for news articles in-memory.
       const snapshot = await db.collection("articles")
         .where("status", "==", "published")
-        .where("founderName", "==", "Startup Afrika AI News")
-        .orderBy("createdAt", "desc")
-        .limit(8)
+        .limit(50)
         .get();
-      return snapshot.docs.map(doc => {
+      const docs = snapshot.docs.map(doc => {
         const data = doc.data();
         return {
           title: data.title,
@@ -1801,6 +1801,11 @@ async function getExistingNewsArticles(): Promise<any[]> {
           articleId: doc.id,
         };
       });
+      // Filter for news articles and sort by date in-memory
+      return docs
+        .filter(d => d.source === "Startup Afrika" || d.source === "Startup Afrika AI News")
+        .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
+        .slice(0, 8);
     } catch (err) {
       console.error("[News] Failed to load existing news articles from Firestore:", err);
     }
