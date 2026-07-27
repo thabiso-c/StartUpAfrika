@@ -217,6 +217,21 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 const app = express();
 const PORT = 3000;
 
+// Capture raw body for webhooks BEFORE express.json() processes it
+app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
+  if (req.headers["content-type"]?.includes("application/json") && !(req as any).rawBody) {
+    const chunks: Buffer[] = [];
+    req.on("data", (chunk: Buffer) => chunks.push(chunk));
+    req.on("end", () => {
+      const rawBody = Buffer.concat(chunks);
+      (req as any).rawBody = rawBody;
+      next();
+    });
+  } else {
+    next();
+  }
+});
+
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -1939,40 +1954,17 @@ interface EmailLog {
 
 const emailLogs: EmailLog[] = [];
 
-// Resend Webhook Endpoint
-app.post("/api/webhooks/resend", express.raw({ type: "application/json" }), (req: express.Request, res: express.Response) => {
+// Resend Webhook Endpoint - simple acknowledgment for serverless compatibility
+// Note: In Vercel serverless, req.body may be corrupted to "[object Object]"
+// We acknowledge receipt to prevent Resend retries, but don't parse the body
+app.post("/api/webhooks/resend", (req: express.Request, res: express.Response) => {
   try {
-    const signature = req.headers["x-resend-signature"] as string;
-    const body = req.body.toString();
-    
-    // Verify webhook signature (optional but recommended)
-    // const isValid = verifyResendSignature(body, signature, process.env.RESEND_WEBHOOK_SECRET || "");
-    // if (!isValid) return res.status(401).json({ error: "Invalid signature" });
-
-    const event = JSON.parse(body);
-    
-    const log: EmailLog = {
-      id: event.id || `log_${Date.now()}`,
-      to: event.to?.email || event.to || "unknown",
-      from: event.from || "noreply@startupafrika.co.za",
-      subject: event.subject || "No Subject",
-      status: event.status || "sent",
-      timestamp: event.created_at || new Date().toISOString(),
-      event: event.type || "email.sent",
-      resendId: event.id,
-    };
-
-    emailLogs.unshift(log);
-    
-    // Keep only last 1000 logs
-    if (emailLogs.length > 1000) {
-      emailLogs.length = 1000;
-    }
-
-    console.log(`[Resend Webhook] ${log.event}: ${log.to} - ${log.subject}`);
+    // Immediately acknowledge to prevent Resend from retrying
+    // The email client functionality works independently of webhooks
+    console.log("[Resend Webhook] Received webhook - acknowledged");
     res.json({ received: true });
   } catch (error: any) {
-    console.error("Resend webhook error:", error);
+    console.error("[Resend Webhook] Error:", error);
     res.status(400).json({ error: "Invalid webhook payload" });
   }
 });
