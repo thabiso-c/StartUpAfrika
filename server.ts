@@ -2007,8 +2007,8 @@ app.get("/api/admin/emails", requireAdminToken, (req: express.Request, res: expr
   res.json(filtered);
 });
 
-// Send email
-app.post("/api/admin/emails/send", requireAdminToken, async (req: express.Request, res: express.Response) => {
+// Send email with attachment support
+app.post("/api/admin/emails/send", requireAdminToken, upload.array("attachments", 10), async (req: express.Request, res: express.Response) => {
   const { account, to, cc, bcc, subject, body, htmlBody, threadId, inReplyTo } = req.body;
   
   if (!account || !to || !subject || !body) {
@@ -2016,6 +2016,17 @@ app.post("/api/admin/emails/send", requireAdminToken, async (req: express.Reques
   }
 
   const now = new Date().toISOString();
+  // Process attachments
+  const uploadedFiles = req.files as Express.Multer.File[] | undefined;
+  const processedAttachments = uploadedFiles 
+    ? uploadedFiles.map((file) => ({
+        name: file.originalname,
+        size: file.size,
+        type: file.mimetype,
+        url: `/uploads/${file.filename}`,
+      }))
+    : [];
+
   const sentEmail: Email = {
     id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
     account,
@@ -2030,7 +2041,7 @@ app.post("/api/admin/emails/send", requireAdminToken, async (req: express.Reques
     isRead: true,
     isStarred: false,
     labels: [],
-    attachments: [],
+    attachments: processedAttachments,
     threadId,
     inReplyTo,
     createdAt: now,
@@ -2044,14 +2055,31 @@ app.post("/api/admin/emails/send", requireAdminToken, async (req: express.Reques
   // Send via Resend if configured
   if (resend && process.env.RESEND_API_KEY) {
     try {
+      // Get signature based on account
+      const signature = getEmailSignature(account);
+      
+      // Build HTML with signature if not already present
+      const finalHtml = htmlBody || body.replace(/\n/g, "<br>");
+      const htmlWithSignature = finalHtml.includes("<!-- signature -->") 
+        ? finalHtml 
+        : `${finalHtml}<br><br>${signature}`;
+      
       await resend.emails.send({
         from: account,
         to: Array.isArray(to) ? to : [to],
         cc: cc ? (Array.isArray(cc) ? cc : [cc]) : undefined,
         bcc: bcc ? (Array.isArray(bcc) ? bcc : [bcc]) : undefined,
         subject,
-        text: body,
-        html: htmlBody || body.replace(/\n/g, "<br>"),
+        text: body + "\n\n" + signature.replace(/<[^>]+>/g, ""),
+        html: htmlWithSignature,
+        headers: {
+          'List-Unsubscribe': `<${process.env.APP_URL || 'https://startupafrika.co.za'}>`,
+          'X-Entity-Ref-ID': sentEmail.id,
+          'X-Priority': '1',
+          'X-MSMail-Priority': 'High',
+          'Importance': 'high',
+        },
+        replyTo: account,
       });
       console.log(`Email sent from ${account} to ${to}: ${subject}`);
     } catch (err) {
@@ -2062,9 +2090,20 @@ app.post("/api/admin/emails/send", requireAdminToken, async (req: express.Reques
   res.json({ success: true, email: sentEmail });
 });
 
-// Save draft
-app.post("/api/admin/emails/draft", requireAdminToken, (req: express.Request, res: express.Response) => {
+// Save draft with attachment support
+app.post("/api/admin/emails/draft", requireAdminToken, upload.array("attachments", 10), (req: express.Request, res: express.Response) => {
   const { account, to, cc, bcc, subject, body, htmlBody } = req.body;
+  
+  // Process attachments
+  const uploadedFiles = req.files as Express.Multer.File[] | undefined;
+  const processedAttachments = uploadedFiles 
+    ? uploadedFiles.map((file) => ({
+        name: file.originalname,
+        size: file.size,
+        type: file.mimetype,
+        url: `/uploads/${file.filename}`,
+      }))
+    : [];
   
   const draft: Email = {
     id: `draft_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
@@ -2080,7 +2119,7 @@ app.post("/api/admin/emails/draft", requireAdminToken, (req: express.Request, re
     isRead: true,
     isStarred: false,
     labels: ["draft"],
-    attachments: [],
+    attachments: processedAttachments,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -2163,6 +2202,76 @@ app.post("/api/admin/emails/receive", requireAdminToken, (req: express.Request, 
   saveJsonArray(EMAILS_FILE, emails);
   res.json({ success: true, email: receivedEmail });
 });
+
+// Email signature helper
+function getEmailSignature(account: string): string {
+  const baseUrl = process.env.APP_URL || "https://startupafrika.co.za";
+  
+  const signatures: Record<string, string> = {
+    "adverts@startupafrika.co.za": `
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #047857;">
+        <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; color: #111827;">
+          <strong style="color: #047857; font-size: 16px;">Startup Afrika — Advertise With Us</strong>
+        </p>
+        <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 13px; color: #4b5563;">
+          Reach African tech founders, venture builders, investors, and decision makers.
+        </p>
+        <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
+          📧 <a href="mailto:advertise@startupafrika.co.za" style="color: #047857; text-decoration: none;">advertise@startupafrika.co.za</a>
+        </p>
+        <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
+          🌐 <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
+        </p>
+      </div>
+      <!-- signature -->`,
+    
+    "info@startupafrika.co.za": `
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #047857;">
+        <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; color: #111827;">
+          <strong style="color: #047857; font-size: 16px;">Startup Afrika — Stories from African Founders</strong>
+        </p>
+        <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 13px; color: #4b5563;">
+          We chronicle the real blueprints of African tech innovation.
+        </p>
+        <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
+          📧 <a href="mailto:info@startupafrika.co.za" style="color: #047857; text-decoration: none;">info@startupafrika.co.za</a>
+        </p>
+        <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
+          🌐 <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
+        </p>
+      </div>
+      <!-- signature -->`,
+    
+    "thabiso@startupafrika.co.za": `
+      <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #047857;">
+        <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; color: #111827;">
+          <strong style="color: #047857; font-size: 16px;">Thabiso Letsoko</strong>
+        </p>
+        <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 13px; color: #4b5563;">
+          Founder & Editor, Startup Afrika
+        </p>
+        <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
+          📧 <a href="mailto:thabiso@startupafrika.co.za" style="color: #047857; text-decoration: none;">thabiso@startupafrika.co.za</a>
+        </p>
+        <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
+          🌐 <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
+        </p>
+      </div>
+      <!-- signature -->`,
+  };
+
+  return signatures[account] || `
+    <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #047857;">
+      <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
+        📧 <a href="mailto:${account}" style="color: #047857; text-decoration: none;">${account}</a>
+      </p>
+      <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
+        🌐 <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
+      </p>
+    </div>
+    <!-- signature -->
+  `;
+}
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
