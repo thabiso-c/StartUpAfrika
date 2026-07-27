@@ -1999,13 +1999,8 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
 });
 
 // Admin: Get email logs
-app.get("/api/admin/email-logs", async (req: express.Request, res: express.Response) => {
+app.get("/api/admin/email-logs", requireAdminToken, async (req: express.Request, res: express.Response) => {
   try {
-    const token = req.headers["x-admin-token"] as string;
-    if (token !== process.env.ADMIN_TOKEN && token !== "admin123") {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
     const limit = parseInt(req.query.limit as string) || 100;
     res.json(emailLogs.slice(0, limit));
   } catch (error: any) {
@@ -2044,7 +2039,10 @@ app.get("/api/admin/emails", requireAdminToken, (req: express.Request, res: expr
   const account = String(req.query.account || "adverts@startupafrika.co.za");
   const folder = String(req.query.folder || "inbox") as Email["folder"] | "all";
   
-  const filtered = emails.filter(e => 
+  // Read from file to ensure we get the latest data in serverless environments
+  const allEmails = loadJsonArray<Email>(EMAILS_FILE, []);
+  
+  const filtered = allEmails.filter(e => 
     e.account === account && 
     (folder === "all" || e.folder === folder)
   ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
