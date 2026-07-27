@@ -213,6 +213,9 @@ const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KE
 
 // Standard ESM workarounds removed since Vercel bundles to CommonJS where import.meta is empty
 
+const app = express();
+const PORT = 3000;
+
 // Capture raw body for webhooks BEFORE express.json() processes it
 app.use((req: express.Request, res: express.Response, next: express.NextFunction) => {
   if (req.headers["content-type"]?.includes("application/json") && !(req as any).rawBody) {
