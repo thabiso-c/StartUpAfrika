@@ -142,6 +142,18 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
             </button>
 
             <button
+              onClick={() => setCurrentTab("about")}
+              className={`px-1 py-2 text-sm font-semibold transition-colors ${
+                currentTab === "about"
+                  ? "text-emerald-700 font-bold"
+                  : "text-gray-600 hover:text-emerald-600"
+              }`}
+              id="nav-about"
+            >
+              About Us
+            </button>
+
+            <button
               onClick={() => setCurrentTab("community")}
               className={`px-1 py-2 text-sm font-semibold transition-colors relative flex items-center gap-1 ${
                 currentTab === "community"

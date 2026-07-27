@@ -10,6 +10,7 @@ import SubmitBlueprint from "./components/SubmitBlueprint";
 import AdminDashboard from "./components/AdminDashboard";
 import AdminGate from "./components/AdminGate";
 import AdvertiseWindow from "./components/AdvertiseWindow";
+import AboutPage from "./components/AboutPage";
 import Footer from "./components/Footer";
 import NewsSection from "./components/NewsSection";
 import EditorGate from "./components/editor/EditorGate";
@@ -301,6 +302,13 @@ export default function App() {
 
       case "outreach":
         return <OutreachGenerator />;
+
+      case "about":
+        return (
+          <div className="animate-fade-in">
+            <AboutPage />
+          </div>
+        );
 
       case "admin":
         return <AdminGate />;

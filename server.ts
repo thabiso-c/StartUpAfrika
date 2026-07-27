@@ -1938,15 +1938,60 @@ interface EmailLog {
 
 const emailLogs: EmailLog[] = [];
 
-// Resend Webhook Endpoint - simple acknowledgment for serverless compatibility
-// Note: In Vercel serverless, req.body may be corrupted to "[object Object]"
-// We acknowledge receipt to prevent Resend retries, but don't parse the body
-app.post("/api/webhooks/resend", (req: express.Request, res: express.Response) => {
+// Resend Webhook Endpoint - process incoming emails
+app.post("/api/webhooks/resend", async (req: express.Request, res: express.Response) => {
   try {
-    // Immediately acknowledge to prevent Resend from retrying
-    // The email client functionality works independently of webhooks
-    console.log("[Resend Webhook] Received webhook - acknowledged");
-    res.json({ received: true });
+    const event = req.body;
+    console.log("[Resend Webhook] Received event:", event.type || "unknown");
+    
+    // Handle email received events
+    if (event.type === "email.received" || event.type === "email.delivered") {
+      const emailData = event.data || event;
+      
+      // Extract email information
+      const from = emailData.from || emailData.sender || "unknown";
+      const to = Array.isArray(emailData.to) ? emailData.to.join(", ") : (emailData.to || "");
+      const subject = emailData.subject || "(No subject)";
+      const body = emailData.text || emailData.html || "";
+      const htmlBody = emailData.html || undefined;
+      
+      // Determine which account received this email
+      let account = "adverts@startupafrika.co.za"; // default
+      if (to.includes("adverts@startupafrika.co.za")) {
+        account = "adverts@startupafrika.co.za";
+      } else if (to.includes("info@startupafrika.co.za")) {
+        account = "info@startupafrika.co.za";
+      } else if (to.includes("thabiso@startupafrika.co.za")) {
+        account = "thabiso@startupafrika.co.za";
+      }
+      
+      // Create inbox email
+      const receivedEmail: Email = {
+        id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+        account,
+        folder: "inbox",
+        from,
+        to,
+        subject,
+        body,
+        htmlBody,
+        isRead: false,
+        isStarred: false,
+        labels: ["inbox"],
+        attachments: [],
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      
+      // Store email
+      emails.unshift(receivedEmail);
+      saveJsonArray(EMAILS_FILE, emails);
+      
+      console.log(`[Resend Webhook] Received email from ${from} to ${to}: ${subject}`);
+    }
+    
+    // Acknowledge after processing
+    res.json({ received: true, processed: true });
   } catch (error: any) {
     console.error("[Resend Webhook] Error:", error);
     res.status(400).json({ error: "Invalid webhook payload" });
