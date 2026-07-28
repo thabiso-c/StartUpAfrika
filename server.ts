@@ -2083,26 +2083,36 @@ app.get("/api/admin/emails", requireAdminToken, async (req: express.Request, res
   const account = String(req.query.account || "adverts@startupafrika.co.za");
   const folder = String(req.query.folder || "inbox") as Email["folder"] | "all";
   
-  // Try Firestore first (works in serverless environments where local file is ephemeral)
-  if (db) {
-    try {
-      const fsEmails = await loadEmailsFromFirestore(account, folder);
-      fsEmails.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      return res.json(fsEmails);
-    } catch (e) {
-      console.error("Firestore emails fetch error, falling back to file:", e);
+  // Merge emails from both Firestore and local file to ensure no data loss
+  // Firestore is the durable source in serverless, local file is the fallback
+  const emailMap = new Map<string, Email>();
+  
+  // 1. Load from local file first (fast, always available)
+  const fileEmails = loadJsonArray<Email>(EMAILS_FILE, []);
+  for (const email of fileEmails) {
+    if (email.account === account && (folder === "all" || email.folder === folder)) {
+      emailMap.set(email.id, email);
     }
   }
   
-  // Fallback: Read from file to ensure we get the latest data
-  const allEmails = loadJsonArray<Email>(EMAILS_FILE, []);
+  // 2. Load from Firestore and merge (overwrites file data with Firestore data)
+  if (db) {
+    try {
+      const fsEmails = await loadEmailsFromFirestore(account, folder);
+      for (const email of fsEmails) {
+        emailMap.set(email.id, email);
+      }
+    } catch (e) {
+      console.error("Firestore emails fetch error, using file data only:", e);
+    }
+  }
   
-  const filtered = allEmails.filter(e => 
-    e.account === account && 
-    (folder === "all" || e.folder === folder)
-  ).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  // 3. Convert map to sorted array
+  const merged = Array.from(emailMap.values()).sort(
+    (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+  );
   
-  res.json(filtered);
+  res.json(merged);
 });
 
 // Send email with attachment support
