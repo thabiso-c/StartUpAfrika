@@ -1999,17 +1999,21 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
     
     // Handle email received events
     if (event.type === "email.received" || event.type === "email.delivered") {
-      const emailData = event.data || event;
+      // Resend nests the actual email object inside event.data.email
+      const emailData = event.data?.email || event.data || event;
       
       // Extract email information
       const from = emailData.from || emailData.sender || "unknown";
       const to = Array.isArray(emailData.to) ? emailData.to.join(", ") : (emailData.to || "");
       const subject = emailData.subject || "(No subject)";
-      const body = emailData.text || emailData.html || "";
+      // Attempt multiple possible payload shapes for content
+      const textBody = emailData.text || emailData.body || emailData.content || "";
+      const htmlContent = emailData.html || emailData.htmlBody || "";
+      const body = textBody || htmlContent || "";
       // Only set htmlBody if it's a non-empty string; otherwise omit it entirely
       // to avoid Firestore "Cannot use undefined as a Firestore value" errors
-      const htmlBody = (emailData.html && typeof emailData.html === "string" && emailData.html.length > 0)
-        ? emailData.html
+      const htmlBody = (htmlContent && typeof htmlContent === "string" && htmlContent.length > 0)
+        ? htmlContent
         : undefined;
       
       // Determine which account received this email
