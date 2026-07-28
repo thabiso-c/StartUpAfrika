@@ -1956,7 +1956,11 @@ async function syncEmailsToFirestore(action: "set" | "delete", email?: Email, em
   if (!db) return;
   try {
     if (action === "set" && email) {
-      await db.collection("emails").doc(email.id).set(email);
+      // Strip undefined values to prevent Firestore "Cannot use undefined as a Firestore value" errors
+      const cleanEmail = Object.fromEntries(
+        Object.entries(email).filter(([, v]) => v !== undefined)
+      ) as Email;
+      await db.collection("emails").doc(email.id).set(cleanEmail);
     } else if (action === "delete" && emailId) {
       await db.collection("emails").doc(emailId).delete();
     }
@@ -2002,7 +2006,11 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
       const to = Array.isArray(emailData.to) ? emailData.to.join(", ") : (emailData.to || "");
       const subject = emailData.subject || "(No subject)";
       const body = emailData.text || emailData.html || "";
-      const htmlBody = emailData.html || undefined;
+      // Only set htmlBody if it's a non-empty string; otherwise omit it entirely
+      // to avoid Firestore "Cannot use undefined as a Firestore value" errors
+      const htmlBody = (emailData.html && typeof emailData.html === "string" && emailData.html.length > 0)
+        ? emailData.html
+        : undefined;
       
       // Determine which account received this email
       let account = "adverts@startupafrika.co.za"; // default
@@ -2023,7 +2031,7 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
         to,
         subject,
         body,
-        htmlBody,
+        ...(htmlBody ? { htmlBody } : {}),
         isRead: false,
         isStarred: false,
         labels: ["inbox"],
@@ -2058,6 +2066,8 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
   } catch (error: any) {
     console.error("[Resend Webhook] Error:", error);
     res.status(400).json({ error: "Invalid webhook payload" });
+>>>>>>>
+
   }
 });
 
