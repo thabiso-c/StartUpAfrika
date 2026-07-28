@@ -14,13 +14,13 @@ import EmailClient from "./EmailClient";
 
 interface EmailLog {
   id: string;
-  to: string;
-  from: string;
-  subject: string;
-  status: "delivered" | "bounced" | "failed" | "sent";
-  timestamp: string;
-  event: string;
-  resendId?: string;
+  title: string;
+  subtitle: string;
+  articleUrl: string;
+  emailsCount: number;
+  emails: string[];
+  sentAt: string;
+  isSimulated: boolean;
 }
 
 interface AdvertConfig {
@@ -920,11 +920,10 @@ export default function AdminDashboard() {
                   <table className="w-full">
                     <thead className="bg-gray-50 border-b border-gray-200">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Status</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Recipient</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Subject</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Event</th>
-                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Time</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Type</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Title</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Recipients</th>
+                        <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Sent At</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
@@ -932,19 +931,15 @@ export default function AdminDashboard() {
                         <tr key={idx} className="hover:bg-gray-50 transition-colors">
                           <td className="px-6 py-4">
                             <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                              log.status === "delivered" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                              log.status === "bounced" ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                              log.status === "failed" ? "bg-rose-50 text-rose-700 border border-rose-200" :
-                              "bg-gray-50 text-gray-700 border border-gray-200"
+                              log.isSimulated ? "bg-amber-50 text-amber-700 border border-amber-200" : "bg-emerald-50 text-emerald-700 border border-emerald-200"
                             }`}>
-                              {log.status}
+                              {log.isSimulated ? "Simulated" : "Sent"}
                             </span>
                           </td>
-                          <td className="px-6 py-4 text-sm font-semibold text-gray-900">{log.to}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600 max-w-xs truncate">{log.subject}</td>
-                          <td className="px-6 py-4 text-sm text-gray-600">{log.event}</td>
+                          <td className="px-6 py-4 text-sm font-semibold text-gray-900 max-w-xs truncate">{log.title}</td>
+                          <td className="px-6 py-4 text-sm text-gray-600">{log.emailsCount} subscriber(s)</td>
                           <td className="px-6 py-4 text-xs text-gray-500 font-mono">
-                            {log.timestamp ? new Date(log.timestamp).toLocaleString() : "N/A"}
+                            {log.sentAt ? new Date(log.sentAt).toLocaleString() : "N/A"}
                           </td>
                         </tr>
                       ))}

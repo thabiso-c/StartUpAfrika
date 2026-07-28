@@ -1789,7 +1789,7 @@ async function getExistingNewsArticles(): Promise<any[]> {
         .where("status", "==", "published")
         .limit(50)
         .get();
-      const docs = snapshot.docs.map(doc => {
+      const docs: any[] = snapshot.docs.map((doc: any) => {
         const data = doc.data();
         return {
           title: data.title,
@@ -1924,19 +1924,61 @@ app.post("/api/generate-outreach", async (req, res) => {
   }
 });
 
-// In-memory email logs store (use Firestore in production)
-interface EmailLog {
+// ── Email Client Routes ───────────────────────────────────────────────────────
+interface Email {
   id: string;
-  to: string;
+  account: string; // which email account
+  folder: "inbox" | "sent" | "drafts" | "trash";
   from: string;
+  to: string;
+  cc?: string;
+  bcc?: string;
   subject: string;
-  status: "delivered" | "bounced" | "failed" | "sent";
-  timestamp: string;
-  event: string;
-  resendId?: string;
+  body: string;
+  htmlBody?: string;
+  isRead: boolean;
+  isStarred: boolean;
+  labels: string[];
+  attachments: Array<{ name: string; size: number; type: string }>;
+  threadId?: string;
+  inReplyTo?: string;
+  createdAt: string;
+  updatedAt: string;
+  sentAt?: string;
 }
 
-const emailLogs: EmailLog[] = [];
+// In-memory email store (loaded from disk at startup; also persisted to Firestore when available)
+const emails: Email[] = loadJsonArray(EMAILS_FILE, []);
+
+// Helper: persist emails to Firestore when available (critical for serverless environments
+// where the local file system is ephemeral and not shared across function instances)
+async function syncEmailsToFirestore(action: "set" | "delete", email?: Email, emailId?: string) {
+  if (!db) return;
+  try {
+    if (action === "set" && email) {
+      await db.collection("emails").doc(email.id).set(email);
+    } else if (action === "delete" && emailId) {
+      await db.collection("emails").doc(emailId).delete();
+    }
+  } catch (err) {
+    console.error("[Firestore] Email sync error:", err);
+  }
+}
+
+// Helper: load emails from Firestore when available (falls back to local file)
+async function loadEmailsFromFirestore(account?: string, folder?: string): Promise<Email[]> {
+  if (!db) return [];
+  try {
+    let query: any = db.collection("emails");
+    if (account) query = query.where("account", "==", account);
+    if (folder && folder !== "all") query = query.where("folder", "==", folder);
+    const snapshot = await query.get();
+    return snapshot.docs.map((doc: any) => doc.data() as Email);
+  } catch (err) {
+    console.error("[Firestore] Email load error:", err);
+    return [];
+  }
+}
 
 // Resend Webhook Endpoint - process incoming emails
 app.post("/api/webhooks/resend", async (req: express.Request, res: express.Response) => {
@@ -1983,10 +2025,24 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
         updatedAt: new Date().toISOString(),
       };
       
-      // Store email
-      emails.unshift(receivedEmail);
-      saveJsonArray(EMAILS_FILE, emails);
+      // Persist to local file (works in dev; ephemeral in serverless)
+      const currentEmails = loadJsonArray<Email>(EMAILS_FILE, []);
+      currentEmails.unshift(receivedEmail);
+      saveJsonArray(EMAILS_FILE, currentEmails);
       
+      // Also update in-memory array (used by POST/PUT/DELETE routes)
+      emails.unshift(receivedEmail);
+      
+      // Also persist to Firestore when available (critical for serverless environments
+      // where the local file system is ephemeral and not shared across instances)
+      if (db) {
+        try {
+          await syncEmailsToFirestore("set", receivedEmail);
+        } catch (e) {
+          console.error("[Firestore] Webhook email sync error:", e);
+        }
+      }
+
       console.log(`[Resend Webhook] Received email from ${from} to ${to}: ${subject}`);
     }
     
@@ -2002,44 +2058,43 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
 app.get("/api/admin/email-logs", requireAdminToken, async (req: express.Request, res: express.Response) => {
   try {
     const limit = parseInt(req.query.limit as string) || 100;
-    res.json(emailLogs.slice(0, limit));
+    // Read from EMAIL_LOGS_FILE (also try Firestore for serverless environments)
+    let logs = loadJsonArray(EMAIL_LOGS_FILE, []);
+    if (db) {
+      try {
+        const snapshot = await db.collection("email_logs").orderBy("sentAt", "desc").limit(limit).get();
+        const fsLogs = snapshot.docs.map(doc => doc.data());
+        if (fsLogs.length > 0) {
+          logs = fsLogs;
+        }
+      } catch (e) {
+        console.error("Firestore email_logs fetch error, using file:", e);
+      }
+    }
+    res.json(logs.slice(0, limit));
   } catch (error: any) {
     console.error("Failed to fetch email logs:", error);
     res.status(500).json({ error: "Failed to fetch email logs" });
   }
 });
 
-// ── Email Client Routes ───────────────────────────────────────────────────────
-interface Email {
-  id: string;
-  account: string; // which email account
-  folder: "inbox" | "sent" | "drafts" | "trash";
-  from: string;
-  to: string;
-  cc?: string;
-  bcc?: string;
-  subject: string;
-  body: string;
-  htmlBody?: string;
-  isRead: boolean;
-  isStarred: boolean;
-  labels: string[];
-  attachments: Array<{ name: string; size: number; type: string }>;
-  threadId?: string;
-  inReplyTo?: string;
-  createdAt: string;
-  updatedAt: string;
-  sentAt?: string;
-}
-
-const emails: Email[] = loadJsonArray(EMAILS_FILE, []);
-
 // Get emails for an account/folder
-app.get("/api/admin/emails", requireAdminToken, (req: express.Request, res: express.Response) => {
+app.get("/api/admin/emails", requireAdminToken, async (req: express.Request, res: express.Response) => {
   const account = String(req.query.account || "adverts@startupafrika.co.za");
   const folder = String(req.query.folder || "inbox") as Email["folder"] | "all";
   
-  // Read from file to ensure we get the latest data in serverless environments
+  // Try Firestore first (works in serverless environments where local file is ephemeral)
+  if (db) {
+    try {
+      const fsEmails = await loadEmailsFromFirestore(account, folder);
+      fsEmails.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      return res.json(fsEmails);
+    } catch (e) {
+      console.error("Firestore emails fetch error, falling back to file:", e);
+    }
+  }
+  
+  // Fallback: Read from file to ensure we get the latest data
   const allEmails = loadJsonArray<Email>(EMAILS_FILE, []);
   
   const filtered = allEmails.filter(e => 
@@ -2094,6 +2149,7 @@ app.post("/api/admin/emails/send", requireAdminToken, upload.array("attachments"
 
   emails.unshift(sentEmail);
   saveJsonArray(EMAILS_FILE, emails);
+  syncEmailsToFirestore("set", sentEmail).catch(() => {});
 
   // Send via Resend if configured
   if (resend && process.env.RESEND_API_KEY) {
@@ -2194,11 +2250,12 @@ app.post("/api/admin/emails/draft", requireAdminToken, upload.array("attachments
 
   emails.unshift(draft);
   saveJsonArray(EMAILS_FILE, emails);
+  syncEmailsToFirestore("set", draft).catch(() => {});
   res.json({ success: true, email: draft });
 });
 
 // Update email (move to folder, star, mark read, etc.)
-app.put("/api/admin/emails/:id", requireAdminToken, (req: express.Request, res: express.Response) => {
+app.put("/api/admin/emails/:id", requireAdminToken, async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
   const { folder, isRead, isStarred, labels } = req.body;
   
@@ -2214,11 +2271,12 @@ app.put("/api/admin/emails/:id", requireAdminToken, (req: express.Request, res: 
   emails[idx].updatedAt = new Date().toISOString();
 
   saveJsonArray(EMAILS_FILE, emails);
+  syncEmailsToFirestore("set", emails[idx]).catch(() => {});
   res.json({ success: true, email: emails[idx] });
 });
 
 // Delete email (move to trash)
-app.delete("/api/admin/emails/:id", requireAdminToken, (req: express.Request, res: express.Response) => {
+app.delete("/api/admin/emails/:id", requireAdminToken, async (req: express.Request, res: express.Response) => {
   const { id } = req.params;
   const idx = emails.findIndex(e => e.id === id);
   
@@ -2229,10 +2287,12 @@ app.delete("/api/admin/emails/:id", requireAdminToken, (req: express.Request, re
   if (emails[idx].folder === "trash") {
     // Permanently delete
     emails.splice(idx, 1);
+    syncEmailsToFirestore("delete", undefined, id).catch(() => {});
   } else {
     // Move to trash
     emails[idx].folder = "trash";
     emails[idx].updatedAt = new Date().toISOString();
+    syncEmailsToFirestore("set", emails[idx]).catch(() => {});
   }
 
   saveJsonArray(EMAILS_FILE, emails);
@@ -2268,6 +2328,7 @@ app.post("/api/admin/emails/receive", requireAdminToken, (req: express.Request, 
 
   emails.unshift(receivedEmail);
   saveJsonArray(EMAILS_FILE, emails);
+  syncEmailsToFirestore("set", receivedEmail).catch(() => {});
   res.json({ success: true, email: receivedEmail });
 });
 
