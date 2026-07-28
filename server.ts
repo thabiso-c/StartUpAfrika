@@ -2065,9 +2065,7 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
     res.json({ received: true, processed: true });
   } catch (error: any) {
     console.error("[Resend Webhook] Error:", error);
-    res.status(400).json({ error: "Invalid webhook payload" });
->>>>>>>
-
+     res.status(400).json({ error: "Invalid webhook payload" });
   }
 });
 
