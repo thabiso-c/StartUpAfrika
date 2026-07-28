@@ -1999,39 +1999,19 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
     
     // Handle email received events
     if (event.type === "email.received" || event.type === "email.delivered") {
-      // Log COMPLETE raw payload to diagnose structure
-      console.log("[Resend Webhook] FULL RAW PAYLOAD:", JSON.stringify(event));
+      // Resend webhooks only include metadata, NOT the email body.
+      // We must use the Resend Receiving API to fetch the full content.
+      console.log("[Resend Webhook] Received event:", event.type);
+      console.log("[Resend Webhook] RAW PAYLOAD:", JSON.stringify(event).substring(0, 1000));
       
       const emailData = event.data?.email || event.data || event;
       
-      // Extract basic fields
+      // Extract basic fields from webhook
       const from = emailData.from || emailData.sender || "unknown";
       const to = Array.isArray(emailData.to) ? emailData.to.join(", ") : (emailData.to || "");
       const subject = emailData.subject || "(No subject)";
       
-      // Extract content - check multiple possible field names
-      let textBody = "";
-      let htmlContent = "";
-      
-      // Check all possible content fields
-      const contentFields = ['text', 'body', 'content', 'plainText', 'html', 'htmlBody', 'rawHtml'];
-      for (const field of contentFields) {
-        const value = emailData[field];
-        if (typeof value === 'string' && value.length > 0) {
-          if (field === 'html' || field === 'htmlBody' || field === 'rawHtml') {
-            htmlContent = value;
-          } else if (!textBody) {
-            textBody = value;
-          }
-        }
-      }
-      
-      const body = textBody || htmlContent || "";
-      const htmlBody = (htmlContent && htmlContent.length > 0) ? htmlContent : undefined;
-      
-      console.log(`[Resend Webhook] Extracted: text=${textBody.length} chars, html=${htmlContent?.length || 0} chars, total=${body.length}`);
-      
-      // Determine which account received this email
+      // Determine account
       let account = "adverts@startupafrika.co.za";
       if (to.includes("adverts@startupafrika.co.za")) {
         account = "adverts@startupafrika.co.za";
@@ -2041,7 +2021,7 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
         account = "thabiso@startupafrika.co.za";
       }
       
-      // Create inbox email
+      // Create email record with empty body initially
       const receivedEmail: Email = {
         id: `email_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
         account,
@@ -2049,8 +2029,7 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
         from,
         to,
         subject,
-        body,
-        ...(htmlBody ? { htmlBody } : {}),
+        body: "",
         isRead: false,
         isStarred: false,
         labels: ["inbox"],
@@ -2058,6 +2037,85 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       };
+      
+      // Fetch full email content from Resend Receiving API with retry logic
+      if (resend && process.env.RESEND_API_KEY) {
+        try {
+          // Get the email ID from the webhook payload - try multiple possible field names
+          const emailId = emailData.email_id || emailData.id || emailData.emailId || event.email_id || event.id || event.emailId;
+          console.log(`[Resend Webhook] Attempting to fetch email from Resend API. ID: ${emailId || 'not found'}`);
+          console.log("[Resend Webhook] emailData keys:", Object.keys(emailData).join(", "));
+          
+          if (emailId) {
+            // Retry logic: email might not be immediately available via API
+            let emailResponse: any = null;
+            let lastError: any = null;
+            
+            for (let attempt = 1; attempt <= 3; attempt++) {
+              try {
+                // Use the Resend Receiving API to get the full email
+                emailResponse = await resend.emails.receiving.get(emailId);
+                
+                if (emailResponse.data && !emailResponse.error) {
+                  break; // Success!
+                } else {
+                  console.warn(`[Resend Webhook] API attempt ${attempt} failed:`, emailResponse.error);
+                  lastError = emailResponse.error;
+                }
+              } catch (err: any) {
+                console.warn(`[Resend Webhook] API attempt ${attempt} error:`, err.message);
+                lastError = err;
+              }
+              
+              // Wait before retry (exponential backoff)
+              if (attempt < 3) {
+                const delay = attempt * 2000; // 2s, 4s
+                console.log(`[Resend Webhook] Waiting ${delay/1000}s before retry...`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+              }
+            }
+            
+            // Process the response
+            if (emailResponse?.data && !emailResponse.error) {
+              const fullEmail = emailResponse.data;
+              console.log("[Resend Webhook] API response keys:", Object.keys(fullEmail).join(", "));
+              
+              // Extract body content from API response
+              if (fullEmail.body && typeof fullEmail.body === 'string') {
+                receivedEmail.body = fullEmail.body;
+              }
+              if (fullEmail.html && typeof fullEmail.html === 'string') {
+                receivedEmail.htmlBody = fullEmail.html;
+              }
+              if (!receivedEmail.body && fullEmail.text && typeof fullEmail.text === 'string') {
+                receivedEmail.body = fullEmail.text;
+              }
+              
+              // Extract attachments if present
+              if (fullEmail.attachments && Array.isArray(fullEmail.attachments)) {
+                receivedEmail.attachments = fullEmail.attachments.map((att: any) => ({
+                  name: att.name || "attachment",
+                  size: att.size || 0,
+                  type: att.type || "application/octet-stream"
+                }));
+              }
+              
+              console.log(`[Resend Webhook] Successfully fetched: body=${receivedEmail.body.length} chars, html=${receivedEmail.htmlBody?.length || 0} chars`);
+            } else {
+              console.warn("[Resend Webhook] All API fetch attempts failed. Last error:", lastError);
+              console.warn("[Resend Webhook] Webhook payload keys:", Object.keys(event).join(", "));
+              console.warn("[Resend Webhook] emailData keys:", Object.keys(emailData).join(", "));
+            }
+          } else {
+            console.warn("[Resend Webhook] No email ID found in webhook payload");
+            console.warn("[Resend Webhook] Full event structure:", JSON.stringify(event).substring(0, 500));
+          }
+        } catch (apiError: any) {
+          console.error("[Resend Webhook] Error in API fetch block:", apiError.message);
+        }
+      } else {
+        console.warn("[Resend Webhook] Resend client not configured (resend=", !!resend, ", hasKey=", !!process.env.RESEND_API_KEY, ")");
+      }
       
       // Persist to local file
       const currentEmails = loadJsonArray<Email>(EMAILS_FILE, []);
@@ -2076,7 +2134,7 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
         }
       }
 
-      console.log(`[Resend Webhook] Saved email: from=${from} to=${to} subject=${subject} body=${receivedEmail.body.length} chars`);
+      console.log(`[Resend Webhook] Final: from=${from} to=${to} subject=${subject} body=${receivedEmail.body.length} chars`);
     }
     
     // Acknowledge after processing
