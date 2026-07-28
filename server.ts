@@ -1999,22 +1999,86 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
     
     // Handle email received events
     if (event.type === "email.received" || event.type === "email.delivered") {
-      // Resend nests the actual email object inside event.data.email
+      // Resend webhook nesting: event.data.email contains the actual message object
+      // but some payloads may flatten or nest differently
       const emailData = event.data?.email || event.data || event;
+      const parentData = event.data || event;
       
-      // Extract email information
-      const from = emailData.from || emailData.sender || "unknown";
-      const to = Array.isArray(emailData.to) ? emailData.to.join(", ") : (emailData.to || "");
-      const subject = emailData.subject || "(No subject)";
-      // Attempt multiple possible payload shapes for content
-      const textBody = emailData.text || emailData.body || emailData.content || "";
-      const htmlContent = emailData.html || emailData.htmlBody || "";
+      // Extract email information from nested email or parent wrapper
+      const from = emailData.from || emailData.sender || parentData.from || parentData.sender || "unknown";
+      const to = Array.isArray(emailData.to) ? emailData.to.join(", ") : (emailData.to || parentData.to || "");
+      const subject = emailData.subject || parentData.subject || "(No subject)";
+      
+      // Content extraction: aggressively check all possible nesting levels and field names
+      let textBody = "";
+      let htmlContent = "";
+      
+      // Log FULL event structure for debugging - this will show us exactly where the content is
+      console.log("[Resend Webhook] FULL EVENT:", JSON.stringify(event).substring(0, 2000));
+      
+      // Recursive function to search entire payload tree for content
+      function searchForContent(obj: any, textArr: string[], htmlArr: string[]): void {
+        if (!obj || typeof obj !== 'object') return;
+        
+        // Check if this object has content fields
+        if (typeof obj.text === 'string' && obj.text.length > 0) textArr.push(obj.text);
+        if (typeof obj.body === 'string' && obj.body.length > 0) textArr.push(obj.body);
+        if (typeof obj.content === 'string' && obj.content.length > 0) textArr.push(obj.content);
+        if (typeof obj.plainText === 'string' && obj.plainText.length > 0) textArr.push(obj.plainText);
+        if (typeof obj.html === 'string' && obj.html.length > 0) htmlArr.push(obj.html);
+        if (typeof obj.htmlBody === 'string' && obj.htmlBody.length > 0) htmlArr.push(obj.htmlBody);
+        if (typeof obj.rawHtml === 'string' && obj.rawHtml.length > 0) htmlArr.push(obj.rawHtml);
+        if (typeof obj.raw_html === 'string' && obj.raw_html.length > 0) htmlArr.push(obj.raw_html);
+        
+        // Check for multipart content structures (Resend uses this)
+        if (Array.isArray(obj.content)) {
+          obj.content.forEach((part: any) => {
+            if (typeof part === 'string') {
+              if (part.includes('<') && part.includes('>')) htmlArr.push(part);
+              else textArr.push(part);
+            } else if (part && typeof part === 'object') {
+              if (part.type === 'text/html' && part.data) htmlArr.push(part.data);
+              if (part.type === 'text/plain' && part.data) textArr.push(part.data);
+              if (part.html) htmlArr.push(part.html);
+              if (part.text) textArr.push(part.text);
+            }
+          });
+        }
+        
+        // Recurse into nested objects
+        Object.values(obj).forEach(val => {
+          if (val && typeof val === 'object' && !Array.isArray(val)) {
+            searchForContent(val, textArr, htmlArr);
+          }
+        });
+      }
+      
+      const textCandidates: string[] = [];
+      const htmlCandidates: string[] = [];
+      
+      // Search ALL sources recursively
+      [emailData, parentData, event].forEach(source => {
+        searchForContent(source, textCandidates, htmlCandidates);
+      });
+      
+      // Prefer the longest/most complete content
+      textBody = textCandidates.sort((a, b) => b.length - a.length)[0] || "";
+      htmlContent = htmlCandidates.sort((a, b) => b.length - a.length)[0] || "";
+      
       const body = textBody || htmlContent || "";
-      // Only set htmlBody if it's a non-empty string; otherwise omit it entirely
-      // to avoid Firestore "Cannot use undefined as a Firestore value" errors
       const htmlBody = (htmlContent && typeof htmlContent === "string" && htmlContent.length > 0)
         ? htmlContent
         : undefined;
+      
+      // Debug logging to help identify payload structure issues
+      if (!body) {
+        console.warn("[Resend Webhook] EMPTY BODY DETECTED. Full event keys:", Object.keys(event).join(","), 
+          "| data keys:", Object.keys(event.data || {}).join(","), 
+          "| emailData keys:", Object.keys(emailData || {}).join(","),
+          "| parentData keys:", Object.keys(parentData || {}).join(","));
+      } else {
+        console.log(`[Resend Webhook] Successfully extracted body (${body.length} chars) and htmlBody (${htmlContent.length} chars)`);
+      }
       
       // Determine which account received this email
       let account = "adverts@startupafrika.co.za"; // default
