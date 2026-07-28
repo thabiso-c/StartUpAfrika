@@ -1966,14 +1966,21 @@ async function syncEmailsToFirestore(action: "set" | "delete", email?: Email, em
 }
 
 // Helper: load emails from Firestore when available (falls back to local file)
+// NOTE: We only use a single `where` clause on `account` to avoid requiring a
+// composite index (account + folder) in Firestore, which would silently fail
+// and return an empty array if the index is missing.
 async function loadEmailsFromFirestore(account?: string, folder?: string): Promise<Email[]> {
   if (!db) return [];
   try {
     let query: any = db.collection("emails");
     if (account) query = query.where("account", "==", account);
-    if (folder && folder !== "all") query = query.where("folder", "==", folder);
     const snapshot = await query.get();
-    return snapshot.docs.map((doc: any) => doc.data() as Email);
+    const allEmails = snapshot.docs.map((doc: any) => doc.data() as Email);
+    // Filter by folder in-memory to avoid composite index requirement
+    if (folder && folder !== "all") {
+      return allEmails.filter((email: Email) => email.folder === folder);
+    }
+    return allEmails;
   } catch (err) {
     console.error("[Firestore] Email load error:", err);
     return [];
@@ -2056,6 +2063,8 @@ app.post("/api/webhooks/resend", async (req: express.Request, res: express.Respo
 
 // Admin: Get email logs
 app.get("/api/admin/email-logs", requireAdminToken, async (req: express.Request, res: express.Response) => {
+  // Prevent caching so the admin dashboard always sees the latest email logs
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   try {
     const limit = parseInt(req.query.limit as string) || 100;
     // Read from EMAIL_LOGS_FILE (also try Firestore for serverless environments)
@@ -2080,6 +2089,8 @@ app.get("/api/admin/email-logs", requireAdminToken, async (req: express.Request,
 
 // Get emails for an account/folder
 app.get("/api/admin/emails", requireAdminToken, async (req: express.Request, res: express.Response) => {
+  // Prevent caching so the admin dashboard always sees the latest emails
+  res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   const account = String(req.query.account || "adverts@startupafrika.co.za");
   const folder = String(req.query.folder || "inbox") as Email["folder"] | "all";
   
