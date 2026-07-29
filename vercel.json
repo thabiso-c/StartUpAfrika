@@ -4,5 +4,11 @@
     { "source": "/editor", "destination": "/" },
     { "source": "/editor/(.*)", "destination": "/" },
     { "source": "/(.*)", "destination": "/" }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/paraphrase-articles",
+      "schedule": "0 */8 * * *"
+    }
   ]
 }
