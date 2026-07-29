@@ -15,20 +15,13 @@ export default function AboutPage() {
               We chronicle the real blueprints of African tech innovation — the unfiltered stories, 
               engineering decisions, and hard-earned lessons from the founders building the continent's future.
             </p>
-            <div className="flex items-center justify-center gap-4">
+            <div className="flex items-center justify-center">
               <a
                 href="mailto:info@startupafrika.co.za"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-800 text-white font-bold rounded-xl hover:bg-emerald-900 transition-colors"
               >
                 <Mail className="w-5 h-5" />
                 Contact Us
-              </a>
-              <a
-                href="https://startupafrika.co.za"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 text-gray-700 font-bold rounded-xl hover:bg-gray-50 transition-colors"
-              >
-                <Globe className="w-5 h-5" />
-                Visit Website
               </a>
             </div>
           </div>
@@ -173,7 +166,7 @@ export default function AboutPage() {
               We're always looking for founders, developers, and builders with compelling stories. 
               Whether you've just launched your MVP or scaled to thousands of users, we want to hear from you.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="flex items-center justify-center">
               <a
                 href="mailto:info@startupafrika.co.za"
                 className="inline-flex items-center gap-2 px-6 py-3 bg-white text-emerald-900 font-bold rounded-xl hover:bg-gray-100 transition-colors"
@@ -181,13 +174,6 @@ export default function AboutPage() {
                 <Mail className="w-5 h-5" />
                 Get in Touch
                 <ArrowRight className="w-4 h-4" />
-              </a>
-              <a
-                href="https://startupafrika.co.za"
-                className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-700 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors"
-              >
-                <Globe className="w-5 h-5" />
-                Visit StartupAfrika.co.za
               </a>
             </div>
           </div>

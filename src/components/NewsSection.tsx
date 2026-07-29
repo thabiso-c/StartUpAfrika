@@ -15,6 +15,10 @@ interface NewsSectionProps {
   onSelectArticle?: (id: string) => void;
 }
 
+const NEWS_CACHE_KEY = "sa_news_cache_v1";
+const NEWS_CACHE_TS_KEY = "sa_news_cache_ts_v1";
+const NEWS_STALE_MS = 5 * 60 * 1000; // 5 minutes
+
 export default function NewsSection({ onSelectArticle }: NewsSectionProps) {
   const [articles, setArticles] = useState<NewsArticle[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,6 +26,24 @@ export default function NewsSection({ onSelectArticle }: NewsSectionProps) {
 
   useEffect(() => {
     const fetchNews = async () => {
+      // Step 1: Paint instantly from localStorage cache (if fresh enough)
+      try {
+        const cachedTs = localStorage.getItem(NEWS_CACHE_TS_KEY);
+        const cachedData = localStorage.getItem(NEWS_CACHE_KEY);
+        if (cachedTs && cachedData) {
+          const age = Date.now() - parseInt(cachedTs);
+          if (age < NEWS_STALE_MS) {
+            const parsed = JSON.parse(cachedData) as NewsArticle[];
+            if (parsed.length > 0) {
+              setArticles(parsed);
+              setLoading(false);
+              return; // Cache is fresh, no need to fetch
+            }
+          }
+        }
+      } catch (_) {}
+
+      // Step 2: Fetch fresh data from server
       try {
         const res = await fetch("/api/news");
         const data = await res.json();
@@ -30,12 +52,29 @@ export default function NewsSection({ onSelectArticle }: NewsSectionProps) {
           setError(data.error);
         } else if (data.articles && data.articles.length > 0) {
           setArticles(data.articles);
+          // Persist to localStorage for instant load on next visit
+          try {
+            localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify(data.articles));
+            localStorage.setItem(NEWS_CACHE_TS_KEY, Date.now().toString());
+          } catch (_) {}
         } else {
           setError("No news articles available at this time.");
         }
         setLoading(false);
       } catch (err) {
         console.error("Error fetching news:", err);
+        // Try to serve stale cache as fallback
+        try {
+          const cachedData = localStorage.getItem(NEWS_CACHE_KEY);
+          if (cachedData) {
+            const parsed = JSON.parse(cachedData) as NewsArticle[];
+            if (parsed.length > 0) {
+              setArticles(parsed);
+              setLoading(false);
+              return;
+            }
+          }
+        } catch (_) {}
         setError("Unable to load news at this time.");
         setLoading(false);
       }
@@ -127,6 +166,7 @@ export default function NewsSection({ onSelectArticle }: NewsSectionProps) {
                   src={article.imageUrl} 
                   alt={article.title}
                   referrerPolicy="no-referrer"
+                  loading="lazy"
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                   onError={(e) => {
                     (e.target as HTMLImageElement).style.display = 'none';
