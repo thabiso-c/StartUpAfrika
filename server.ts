@@ -633,6 +633,130 @@ app.post("/api/adverts/inquire", async (req, res) => {
     }
   }
 
+  // Send email notification to the StartUpAfrika partnerships team
+  if (resend && process.env.RESEND_API_KEY) {
+    try {
+      const inquiryDate = new Date(newInquiry.date).toLocaleString("en-ZA", {
+        year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+      });
+
+      const emailHtml = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Ad Space Inquiry from ${newInquiry.companyName}</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background-color:#f9fafb;padding:20px 12px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="max-width:580px;background:#ffffff;border-radius:12px;border:1px solid #f3f4f6;overflow:hidden;">
+          <tr>
+            <td style="padding:24px 28px 16px;border-bottom:1px solid #f3f4f6;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td>
+                    <a href="https://startupafrika.co.za" style="font-size:15px;font-weight:800;color:#047857;text-decoration:none;letter-spacing:0.5px;text-transform:uppercase;">Startup Afrika</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 28px;">
+              <h1 style="margin:0 0 8px 0;font-size:22px;font-weight:800;color:#111827;line-height:1.3;">New Ad Space Inquiry</h1>
+              <p style="margin:0 0 20px 0;font-size:14px;color:#4b5563;line-height:1.5;">
+                A new advertising inquiry has been submitted on StartUpAfrika. Details below:
+              </p>
+
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="margin-bottom:20px;">
+                <tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
+                    <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Company</span>
+                    <div style="font-size:14px;color:#111827;margin-top:2px;">${newInquiry.companyName}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
+                    <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Contact Name</span>
+                    <div style="font-size:14px;color:#111827;margin-top:2px;">${newInquiry.contactName || "—"}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
+                    <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Email</span>
+                    <div style="font-size:14px;color:#111827;margin-top:2px;">${newInquiry.email}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
+                    <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Budget Range</span>
+                    <div style="font-size:14px;color:#111827;margin-top:2px;">${newInquiry.budget}</div>
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;">
+                    <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Message</span>
+                    <div style="font-size:14px;color:#111827;margin-top:2px;white-space:pre-wrap;">${newInquiry.message || "No message provided."}</div>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin:0 0 20px 0;font-size:12px;color:#6b7280;line-height:1.5;">
+                Submitted on ${inquiryDate}
+              </p>
+
+              <div>
+                <a href="https://startupafrika.co.za/admin/inquiries" style="display:inline-block;background:#047857;color:#ffffff;font-size:14px;font-weight:600;padding:10px 24px;border-radius:8px;text-decoration:none;letter-spacing:0.2px;">View All Inquiries</a>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="background-color:#f9fafb;padding:20px 28px;border-top:1px solid #f3f4f6;">
+              <p style="margin:0;font-size:12px;color:#6b7280;line-height:1.5;text-align:center;">
+                This email was sent automatically from the StartUpAfrika advertising inquiry form.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+      const emailText = `
+New Ad Space Inquiry - StartUpAfrika
+
+Company: ${newInquiry.companyName}
+Contact Name: ${newInquiry.contactName || "—"}
+Email: ${newInquiry.email}
+Budget Range: ${newInquiry.budget}
+Message: ${newInquiry.message || "No message provided."}
+
+Submitted on: ${inquiryDate}
+
+View all inquiries: https://startupafrika.co.za/admin/inquiries
+`;
+
+      await resend.emails.send({
+        from: "Startup Afrika <adverts@startupafrika.co.za>",
+        to: ["adverts@startupafrika.co.za"],
+        subject: `New Ad Space Inquiry from ${newInquiry.companyName}`,
+        text: emailText,
+        html: emailHtml,
+        headers: {
+          "X-Entity-Ref-ID": newInquiry.id,
+        },
+      });
+      console.log(`[Ad Inquiry] Email notification sent to adverts@startupafrika.co.za for inquiry ${newInquiry.id}`);
+    } catch (emailErr) {
+      console.error("[Ad Inquiry] Failed to send email notification:", emailErr);
+    }
+  }
+
   res.json({ success: true, inquiry: newInquiry });
 });
 
