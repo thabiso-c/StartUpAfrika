@@ -1553,6 +1553,123 @@ app.post("/api/submissions", (req, res) => {
 let newsCache: { timestamp: number; articles: any[] } = { timestamp: 0, articles: [] };
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
+// ── Gemini Quota State Persistence ─────────────────────────────────────────────
+// Tracks when the daily quota was exhausted so we can skip Gemini calls
+// until the quota resets (free tier resets daily).
+const QUOTA_STATE_FILE = path.join(dataDir, "gemini_quota_state.json");
+
+interface QuotaState {
+  exhaustedUntil: number; // Unix timestamp (ms) when we can retry Gemini
+  lastExhaustedAt: string; // ISO timestamp of when quota was exhausted
+}
+
+function loadQuotaState(): QuotaState | null {
+  try {
+    if (fs.existsSync(QUOTA_STATE_FILE)) {
+      const content = fs.readFileSync(QUOTA_STATE_FILE, "utf-8");
+      return JSON.parse(content);
+    }
+  } catch (e) {
+    console.error("[Quota State] Error loading:", e);
+  }
+  return null;
+}
+
+function saveQuotaState(state: QuotaState): void {
+  try {
+    fs.writeFileSync(QUOTA_STATE_FILE, JSON.stringify(state, null, 2), "utf-8");
+  } catch (e) {
+    console.error("[Quota State] Error saving:", e);
+  }
+}
+
+// Check if Gemini quota is currently marked as exhausted (checks local file + Firestore)
+async function isQuotaExhausted(): Promise<boolean> {
+  const localState = loadQuotaState();
+  if (localState && Date.now() < localState.exhaustedUntil) return true;
+
+  // Check Firestore (survives cold starts on serverless)
+  if (db) {
+    try {
+      const doc = await db.collection("config").doc("gemini_quota").get();
+      if (doc.exists) {
+        const data = doc.data() as QuotaState;
+        if (data && data.exhaustedUntil && Date.now() < data.exhaustedUntil) {
+          saveQuotaState(data); // cache locally
+          return true;
+        }
+      }
+    } catch (_) {}
+  }
+  return false;
+}
+
+// Mark quota as exhausted until the next UTC midnight
+function markQuotaExhausted(): void {
+  const now = new Date();
+  const nextReset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
+  const state: QuotaState = {
+    exhaustedUntil: nextReset.getTime(),
+    lastExhaustedAt: now.toISOString(),
+  };
+  saveQuotaState(state);
+  if (db) {
+    try { db.collection("config").doc("gemini_quota").set(state).catch(() => {}); } catch (_) {}
+  }
+  console.warn(`[Quota State] Gemini quota marked exhausted until ${nextReset.toISOString()}`);
+}
+
+// Clear quota state when a Gemini call succeeds
+function clearQuotaState(): void {
+  try { if (fs.existsSync(QUOTA_STATE_FILE)) fs.unlinkSync(QUOTA_STATE_FILE); } catch (_) {}
+  if (db) {
+    try { db.collection("config").doc("gemini_quota").delete().catch(() => {}); } catch (_) {}
+  }
+}
+
+// Helper: store an article with original (unparaphrased) content as a fallback
+// This ensures the dedup cache builds up even when Gemini quota is exhausted
+async function storeUnparaphrasedArticle(article: any, stableId: string): Promise<void> {
+  const fallbackArticle: Article & { sourceUrl?: string; isEditorArticle?: boolean; isNews?: boolean; source?: string; paraphrased?: boolean } = {
+    id: stableId,
+    title: `Startup Afrika Featured: ${article.title}`,
+    subtitle: (article.description || "").substring(0, 150) + "...",
+    founderName: "Startup Afrika AI News",
+    startupName: article.source,
+    location: "Africa",
+    foundedYear: new Date().getFullYear().toString(),
+    tags: ["African Tech"],
+    coverImage: article.imageUrl || "",
+    coverHeight: 288,
+    coverPosition: "center",
+    body: `<p>${article.description || article.title}</p>`,
+    status: "published",
+    wordCount: (article.description || "").split(/\s+/).filter(Boolean).length,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+    sourceUrl: article.url,
+    isEditorArticle: false,
+    isNews: true,
+    source: "news_scraper",
+    paraphrased: false,
+  };
+
+  const existingIdx = articles.findIndex(a => a.id === stableId);
+  if (existingIdx !== -1) {
+    articles[existingIdx] = fallbackArticle;
+  } else {
+    articles.push(fallbackArticle);
+  }
+  saveJsonArray(ARTICLES_FILE, articles);
+  if (db) {
+    try {
+      await db.collection("articles").doc(stableId).set(fallbackArticle);
+    } catch (err) {
+      console.error("[News Task] Firestore save error (fallback):", err);
+    }
+  }
+}
+
 async function fetchAndParaphraseNews() {
   console.log("[News Task] Starting hourly news fetch & paraphrase...");
   const apiKey = process.env.GNEWS_API_KEY || process.env.NEWSAPI_KEY;
@@ -1609,7 +1726,10 @@ async function fetchAndParaphraseNews() {
             },
           },
         });
-        return JSON.parse(aiResponse.text?.trim() || "{}");
+        const parsed = JSON.parse(aiResponse.text?.trim() || "{}");
+        // Clear quota state on successful call
+        clearQuotaState();
+        return parsed;
       } catch (err: any) {
         const errMsg = String(err?.message || "").toLowerCase();
         const errDetails = JSON.stringify(err?.errorDetails || err?.details || "");
@@ -1617,6 +1737,7 @@ async function fetchAndParaphraseNews() {
 
         if (err?.status === 429 && isDailyExhausted) {
           console.warn("[News Task] Daily Gemini quota completely exhausted. Aborting retry.");
+          markQuotaExhausted();
           const quotaErr: any = new Error("GEMINI_QUOTA_EXHAUSTED");
           quotaErr.status = 429;
           quotaErr.isQuotaExhausted = true;
@@ -1638,7 +1759,13 @@ async function fetchAndParaphraseNews() {
 
   const rewrittenArticles = [];
 
-  if (unique.length > 0 && ai) {
+  // Check if Gemini quota is already known to be exhausted
+  const quotaExhausted = await isQuotaExhausted();
+  if (quotaExhausted) {
+    console.warn("[News Task] Gemini quota is marked as exhausted. Storing articles without paraphrasing.");
+  }
+
+  if (unique.length > 0) {
     for (let i = 0; i < unique.length; i++) {
       const article = unique[i];
 
@@ -1664,12 +1791,33 @@ async function fetchAndParaphraseNews() {
       }
 
       if (alreadyExists) {
-        console.log(`[News Task] Skipping already-processed article: ${article.title}`);
+        // If the existing article was stored unparaphrased and quota is now available, retry paraphrasing
+        if (existingData?.paraphrased === false && ai && !quotaExhausted) {
+          console.log(`[News Task] Retrying paraphrase for previously unparaphrased article: ${article.title}`);
+          // Fall through to the paraphrase logic below by treating it as not existing
+          alreadyExists = false;
+          existingData = null;
+        } else {
+          console.log(`[News Task] Skipping already-processed article: ${article.title}`);
+          rewrittenArticles.push({
+            ...article,
+            title: existingData?.title || article.title,
+            description: existingData?.subtitle || article.description,
+            articleId: existingData?.id || stableId,
+          });
+          continue;
+        }
+      }
+
+      // If quota is exhausted or AI unavailable, store the article unparaphrased and move on
+      if (quotaExhausted || !ai) {
+        console.log(`[News Task] Storing unparaphrased article (quota exhausted or AI unavailable): ${article.title}`);
+        await storeUnparaphrasedArticle(article, stableId);
         rewrittenArticles.push({
           ...article,
-          title: existingData?.title || article.title,
-          description: existingData?.subtitle || article.description,
-          articleId: existingData?.id || stableId,
+          title: `Startup Afrika Featured: ${article.title}`,
+          description: article.description,
+          articleId: stableId,
         });
         continue;
       }
@@ -1707,7 +1855,7 @@ async function fetchAndParaphraseNews() {
 
         const aiResult = await callGeminiWithRetry(prompt);
 
-        const startupAfrikaArticle: Article & { sourceUrl?: string; isEditorArticle?: boolean; isNews?: boolean; source?: string } = {
+        const startupAfrikaArticle: Article & { sourceUrl?: string; isEditorArticle?: boolean; isNews?: boolean; source?: string; paraphrased?: boolean } = {
           id: stableId,
           title: aiResult.newTitle || `Startup Afrika Featured: ${article.title}`,
           subtitle: (aiResult.paraphrasedBodyHtml || article.description).replace(/<[^>]*>?/gm, '').substring(0, 150) + "...",
@@ -1728,9 +1876,16 @@ async function fetchAndParaphraseNews() {
           isEditorArticle: false,
           isNews: true,
           source: "news_scraper",
+          paraphrased: true,
         };
 
-        articles.push(startupAfrikaArticle);
+        // Update if article was previously stored unparaphrased (retry case), otherwise push
+        const existingIdx = articles.findIndex(a => a.id === stableId);
+        if (existingIdx !== -1) {
+          articles[existingIdx] = startupAfrikaArticle;
+        } else {
+          articles.push(startupAfrikaArticle);
+        }
         saveJsonArray(ARTICLES_FILE, articles);
         if (db) {
           try {
@@ -1755,7 +1910,30 @@ async function fetchAndParaphraseNews() {
       } catch (articleErr: any) {
         console.error(`[News Task] Error processing article ${article.url}:`, articleErr?.message || articleErr);
         if (articleErr?.isQuotaExhausted || articleErr?.status === 429) {
-          console.warn("[News Task] Quota limit reached during batch. Stopping batch processing.");
+          console.warn("[News Task] Quota limit reached. Storing remaining articles unparaphrased.");
+          // Store this article unparaphrased
+          await storeUnparaphrasedArticle(article, stableId);
+          rewrittenArticles.push({
+            ...article,
+            title: `Startup Afrika Featured: ${article.title}`,
+            description: article.description,
+            articleId: stableId,
+          });
+          // Store remaining articles unparaphrased too
+          for (let j = i + 1; j < unique.length; j++) {
+            const nextArticle = unique[j];
+            const nextId = urlToId(nextArticle.url);
+            const nextExists = articles.some(a => a.id === nextId);
+            if (!nextExists) {
+              await storeUnparaphrasedArticle(nextArticle, nextId);
+            }
+            rewrittenArticles.push({
+              ...nextArticle,
+              title: `Startup Afrika Featured: ${nextArticle.title}`,
+              description: nextArticle.description,
+              articleId: nextId,
+            });
+          }
           break;
         }
         rewrittenArticles.push(article);
@@ -1770,14 +1948,19 @@ async function fetchAndParaphraseNews() {
   return unique;
 }
 
-// Start the hourly recurring background task
-setInterval(async () => {
-  try {
-    await fetchAndParaphraseNews();
-  } catch (err) {
-    console.error("[News Task] Background fetch failed:", err);
-  }
-}, CACHE_TTL);
+// Start the hourly recurring background task (only in non-serverless environments)
+// On Vercel, setInterval does not persist across cold starts and can cause
+// duplicate calls that burn through the Gemini quota. The /api/news endpoint
+// triggers fetchAndParaphraseNews() on demand when the cache expires.
+if (!process.env.VERCEL) {
+  setInterval(async () => {
+    try {
+      await fetchAndParaphraseNews();
+    } catch (err) {
+      console.error("[News Task] Background fetch failed:", err);
+    }
+  }, CACHE_TTL);
+}
 
 // Helper: fetch already-processed news articles from Firestore
 async function getExistingNewsArticles(): Promise<any[]> {
@@ -1794,16 +1977,17 @@ async function getExistingNewsArticles(): Promise<any[]> {
         return {
           title: data.title,
           description: data.subtitle,
-          url: "",
+          url: data.sourceUrl || "",
           source: data.startupName || "Startup Afrika",
           publishedAt: data.createdAt,
           imageUrl: data.coverImage || "",
           articleId: doc.id,
+          isNews: data.isNews === true || data.source === "news_scraper",
         };
       });
-      // Filter for news articles and sort by date in-memory
+      // Filter for news articles (isNews flag or news_scraper source) and sort by date
       return docs
-        .filter(d => d.source === "Startup Afrika" || d.source === "Startup Afrika AI News")
+        .filter(d => d.isNews)
         .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime())
         .slice(0, 8);
     } catch (err) {
@@ -1889,7 +2073,7 @@ app.post("/api/generate-outreach", async (req, res) => {
     `;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
