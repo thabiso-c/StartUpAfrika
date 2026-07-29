@@ -1909,7 +1909,7 @@ async function fetchAndParaphraseNews() {
         await storeUnparaphrasedArticle(article, stableId);
         rewrittenArticles.push({
           ...article,
-          title: `Startup Afrika Featured: ${article.title}`,
+          title: article.title,
           description: article.description,
           articleId: stableId,
         });
@@ -2009,7 +2009,7 @@ async function fetchAndParaphraseNews() {
           await storeUnparaphrasedArticle(article, stableId);
           rewrittenArticles.push({
             ...article,
-            title: `Startup Afrika Featured: ${article.title}`,
+            title: article.title,
             description: article.description,
             articleId: stableId,
           });
@@ -2023,7 +2023,7 @@ async function fetchAndParaphraseNews() {
             }
             rewrittenArticles.push({
               ...nextArticle,
-              title: `Startup Afrika Featured: ${nextArticle.title}`,
+              title: nextArticle.title,
               description: nextArticle.description,
               articleId: nextId,
             });
@@ -2056,6 +2056,21 @@ if (!process.env.VERCEL) {
   }, CACHE_TTL);
 }
 
+// Helper: strip "Startup Afrika Featured:" prefix from article titles if present
+function stripFeaturedPrefix(title: string): string {
+  if (!title) return title;
+  const prefix = "Startup Afrika Featured: ";
+  if (title.startsWith(prefix)) {
+    return title.substring(prefix.length);
+  }
+  // Also handle case variations
+  const lowerPrefix = "startup afrika featured: ";
+  if (title.toLowerCase().startsWith(lowerPrefix)) {
+    return title.substring(lowerPrefix.length);
+  }
+  return title;
+}
+
 // Helper: fetch already-processed news articles from Firestore
 async function getExistingNewsArticles(): Promise<any[]> {
   if (db) {
@@ -2068,8 +2083,13 @@ async function getExistingNewsArticles(): Promise<any[]> {
         .get();
       const docs: any[] = snapshot.docs.map((doc: any) => {
         const data = doc.data();
+        const cleanTitle = stripFeaturedPrefix(data.title);
+        // If the title had the prefix, update it in Firestore to clean it permanently
+        if (cleanTitle !== data.title) {
+          db.collection("articles").doc(doc.id).set({ title: cleanTitle }, { merge: true }).catch(() => {});
+        }
         return {
-          title: data.title,
+          title: cleanTitle,
           description: data.subtitle,
           url: data.sourceUrl || "",
           source: data.startupName || "Startup Afrika",
@@ -2129,8 +2149,10 @@ app.post("/api/cron/paraphrase-articles", async (req, res) => {
   }
 });
 
-// News API Endpoint
+// News API Endpoint — optimized with proper cache headers for faster loading
 app.get("/api/news", async (req, res) => {
+  // Enable browser/CDN caching for 5 minutes to reduce server load and speed up repeat visits
+  res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
   try {
     const now = Date.now();
     if (now - newsCache.timestamp < CACHE_TTL && newsCache.articles.length > 0) {
