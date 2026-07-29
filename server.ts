@@ -1722,7 +1722,7 @@ function clearQuotaState(): void {
 async function storeUnparaphrasedArticle(article: any, stableId: string): Promise<void> {
   const fallbackArticle: Article & { sourceUrl?: string; isEditorArticle?: boolean; isNews?: boolean; source?: string; paraphrased?: boolean } = {
     id: stableId,
-    title: `Startup Afrika Featured: ${article.title}`,
+    title: article.title,
     subtitle: (article.description || "").substring(0, 150) + "...",
     founderName: "Startup Afrika AI News",
     startupName: article.source,
@@ -1951,7 +1951,7 @@ async function fetchAndParaphraseNews() {
 
         const startupAfrikaArticle: Article & { sourceUrl?: string; isEditorArticle?: boolean; isNews?: boolean; source?: string; paraphrased?: boolean } = {
           id: stableId,
-          title: aiResult.newTitle || `Startup Afrika Featured: ${article.title}`,
+          title: aiResult.newTitle || article.title,
           subtitle: (aiResult.paraphrasedBodyHtml || article.description).replace(/<[^>]*>?/gm, '').substring(0, 150) + "...",
           founderName: "Startup Afrika AI News",
           startupName: article.source,
