@@ -461,17 +461,56 @@ const submissions: Array<{
   date: string;
 }> = loadJsonArray(SUBMISSIONS_FILE, []);
 
-// Initialize Gemini Client
-const ai = process.env.GEMINI_API_KEY
-  ? new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
+// ── Multi-Key Gemini Client Pool ──────────────────────────────────────────────
+// Collect all available Gemini API keys and create a client for each.
+// Keys are rotated every 8 hours so that each key's daily quota is used
+// in turn, effectively tripling the available daily paraphrasing capacity.
+const GEMINI_KEYS: string[] = [
+  process.env.GEMINI_API_KEY,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+].filter((k): k is string => !!k && k.trim().length > 0);
+
+const geminiClients: GoogleGenAI[] = GEMINI_KEYS.map(
+  (apiKey) =>
+    new GoogleGenAI({
+      apiKey,
       httpOptions: {
         headers: {
           "User-Agent": "aistudio-build",
         },
       },
     })
-  : null;
+);
+
+// 8-hour rotation interval (in milliseconds)
+const ROTATION_INTERVAL = 8 * 60 * 60 * 1000; // 8 hours
+
+// Determine which key index is active based on the current time.
+// The rotation is deterministic: floor(timestamp / 8h) % numKeys.
+// This ensures that even across cold starts on serverless, every instance
+// picks the same key for the same 8-hour window.
+function getActiveKeyIndex(): number {
+  if (geminiClients.length === 0) return 0;
+  const slot = Math.floor(Date.now() / ROTATION_INTERVAL);
+  return slot % geminiClients.length;
+}
+
+// Get the active Gemini client for the current 8-hour window
+function getActiveGeminiClient(): GoogleGenAI | null {
+  if (geminiClients.length === 0) return null;
+  return geminiClients[getActiveKeyIndex()];
+}
+
+// Backward-compatible alias: `ai` now returns the *currently active* client.
+const ai: GoogleGenAI | null = geminiClients.length > 0 ? geminiClients[0] : null;
+
+// Log key pool status at startup
+if (geminiClients.length > 0) {
+  console.log(`[Gemini Pool] Initialized with ${geminiClients.length} API key(s). Active key index: ${getActiveKeyIndex()}`);
+} else {
+  console.warn("[Gemini Pool] No Gemini API keys configured. Paraphrasing will be unavailable.");
+}
 
 // ── Editor Auth Routes ───────────────────────────────────────────────────────
 app.post("/api/editor/login", (req, res) => {
@@ -1308,7 +1347,17 @@ app.get("/api/articles", async (req, res) => {
   res.json(published);
 });
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", geminiConfigured: !!ai });
+  const activeKeyIndex = geminiClients.length > 0 ? getActiveKeyIndex() : -1;
+  const slot = Math.floor(Date.now() / ROTATION_INTERVAL);
+  res.json({
+    status: "ok",
+    geminiConfigured: !!ai,
+    geminiKeyCount: geminiClients.length,
+    activeKeyIndex,
+    rotationSlot: slot,
+    nextRotation: new Date((slot + 1) * ROTATION_INTERVAL).toISOString(),
+    rotationIntervalHours: 8,
+  });
 });
 
 // Subscriber Endpoints
@@ -1557,17 +1606,22 @@ const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 // Tracks when the daily quota was exhausted so we can skip Gemini calls
 // until the quota resets (free tier resets daily).
 const QUOTA_STATE_FILE = path.join(dataDir, "gemini_quota_state.json");
+// Per-key quota state: tracks exhaustion for each Gemini key independently
 
 interface QuotaState {
-  exhaustedUntil: number; // Unix timestamp (ms) when we can retry Gemini
-  lastExhaustedAt: string; // ISO timestamp of when quota was exhausted
+  exhaustedUntil: Record<number, number>;
+  lastExhaustedAt: Record<number, string>;
 }
 
 function loadQuotaState(): QuotaState | null {
   try {
     if (fs.existsSync(QUOTA_STATE_FILE)) {
       const content = fs.readFileSync(QUOTA_STATE_FILE, "utf-8");
-      return JSON.parse(content);
+      const parsed = JSON.parse(content);
+      if (parsed.exhaustedUntil && typeof parsed.exhaustedUntil === "number") {
+        return { exhaustedUntil: { 0: parsed.exhaustedUntil }, lastExhaustedAt: { 0: parsed.lastExhaustedAt } };
+      }
+      return { exhaustedUntil: parsed.exhaustedUntil || {}, lastExhaustedAt: parsed.lastExhaustedAt || {} };
     }
   } catch (e) {
     console.error("[Quota State] Error loading:", e);
@@ -1584,42 +1638,78 @@ function saveQuotaState(state: QuotaState): void {
 }
 
 // Check if Gemini quota is currently marked as exhausted (checks local file + Firestore)
-async function isQuotaExhausted(): Promise<boolean> {
+// Check if a SPECIFIC key index is currently marked as exhausted
+async function isKeyExhausted(keyIndex: number): Promise<boolean> {
   const localState = loadQuotaState();
-  if (localState && Date.now() < localState.exhaustedUntil) return true;
-
-  // Check Firestore (survives cold starts on serverless)
+  if (localState?.exhaustedUntil?.[keyIndex] && Date.now() < localState.exhaustedUntil[keyIndex]) {
+    return true;
+  }
   if (db) {
     try {
       const doc = await db.collection("config").doc("gemini_quota").get();
       if (doc.exists) {
-        const data = doc.data() as QuotaState;
-        if (data && data.exhaustedUntil && Date.now() < data.exhaustedUntil) {
-          saveQuotaState(data); // cache locally
+        const data = doc.data() as any;
+        const eu = data?.exhaustedUntil;
+        if (eu && typeof eu === "object" && eu[keyIndex] && Date.now() < eu[keyIndex]) {
+          saveQuotaState({ exhaustedUntil: eu, lastExhaustedAt: data?.lastExhaustedAt || {} });
           return true;
         }
+        if (eu && typeof eu === "number" && keyIndex === 0 && Date.now() < eu) return true;
       }
     } catch (_) {}
   }
   return false;
 }
 
+// Check if ALL keys are exhausted
+async function isQuotaExhausted(): Promise<boolean> {
+  if (geminiClients.length === 0) return true;
+  for (let i = 0; i < geminiClients.length; i++) {
+    if (!(await isKeyExhausted(i))) return false;
+  }
+  return true;
+}
+
+// Find the first available (non-exhausted) key index, starting from the active key
+async function getAvailableKeyIndex(): Promise<number | null> {
+  if (geminiClients.length === 0) return null;
+  const startIdx = getActiveKeyIndex();
+  for (let offset = 0; offset < geminiClients.length; offset++) {
+    const idx = (startIdx + offset) % geminiClients.length;
+    if (!(await isKeyExhausted(idx))) return idx;
+  }
+  return null;
+}
+
 // Mark quota as exhausted until the next UTC midnight
-function markQuotaExhausted(): void {
+function markKeyExhausted(keyIndex: number): void {
   const now = new Date();
   const nextReset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1, 0, 0, 0));
-  const state: QuotaState = {
-    exhaustedUntil: nextReset.getTime(),
-    lastExhaustedAt: now.toISOString(),
-  };
+  const state = loadQuotaState() || { exhaustedUntil: {}, lastExhaustedAt: {} };
+  state.exhaustedUntil[keyIndex] = nextReset.getTime();
+  state.lastExhaustedAt[keyIndex] = now.toISOString();
   saveQuotaState(state);
   if (db) {
     try { db.collection("config").doc("gemini_quota").set(state).catch(() => {}); } catch (_) {}
   }
-  console.warn(`[Quota State] Gemini quota marked exhausted until ${nextReset.toISOString()}`);
+  console.warn(`[Quota State] Gemini key #${keyIndex} marked exhausted until ${nextReset.toISOString()}`);
 }
 
-// Clear quota state when a Gemini call succeeds
+// Clear exhaustion state for a SPECIFIC key when a call succeeds
+function clearKeyExhausted(keyIndex: number): void {
+  const state = loadQuotaState();
+  if (state) {
+    let changed = false;
+    if (state.exhaustedUntil?.[keyIndex]) { delete state.exhaustedUntil[keyIndex]; changed = true; }
+    if (state.lastExhaustedAt?.[keyIndex]) { delete state.lastExhaustedAt[keyIndex]; changed = true; }
+    if (changed) {
+      saveQuotaState(state);
+      if (db) { try { db.collection("config").doc("gemini_quota").set(state).catch(() => {}); } catch (_) {} }
+    }
+  }
+}
+
+// Clear ALL quota state
 function clearQuotaState(): void {
   try { if (fs.existsSync(QUOTA_STATE_FILE)) fs.unlinkSync(QUOTA_STATE_FILE); } catch (_) {}
   if (db) {
@@ -1707,10 +1797,14 @@ async function fetchAndParaphraseNews() {
   };
 
   // Helper: call Gemini with retry-with-backoff on 429
+  // Uses the active rotated key for this 8-hour window
+  const activeKeyIndex = getActiveKeyIndex();
+  const activeClient = getActiveGeminiClient();
   const callGeminiWithRetry = async (prompt: string, retries = 2): Promise<any> => {
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const aiResponse = await ai!.models.generateContent({
+        if (!activeClient) throw new Error("No Gemini client available");
+        const aiResponse = await activeClient.models.generateContent({
           model: "gemini-2.0-flash-lite",
           contents: prompt,
           config: {
@@ -1727,8 +1821,8 @@ async function fetchAndParaphraseNews() {
           },
         });
         const parsed = JSON.parse(aiResponse.text?.trim() || "{}");
-        // Clear quota state on successful call
-        clearQuotaState();
+        // Clear quota state for this key on successful call
+        clearKeyExhausted(activeKeyIndex);
         return parsed;
       } catch (err: any) {
         const errMsg = String(err?.message || "").toLowerCase();
@@ -1737,7 +1831,7 @@ async function fetchAndParaphraseNews() {
 
         if (err?.status === 429 && isDailyExhausted) {
           console.warn("[News Task] Daily Gemini quota completely exhausted. Aborting retry.");
-          markQuotaExhausted();
+          markKeyExhausted(activeKeyIndex);
           const quotaErr: any = new Error("GEMINI_QUOTA_EXHAUSTED");
           quotaErr.status = 429;
           quotaErr.isQuotaExhausted = true;
@@ -1996,6 +2090,44 @@ async function getExistingNewsArticles(): Promise<any[]> {
   }
   return [];
 }
+
+// ── Vercel Cron Job: Paraphrase Articles Every 8 Hours ──────────────────────
+// This endpoint is called by Vercel's cron job (configured in vercel.json).
+// It fetches fresh news, paraphrases using the currently active Gemini key,
+// and appends new articles to the existing store (never deletes).
+// Protected by a CRON_SECRET to prevent unauthorized invocations.
+app.post("/api/cron/paraphrase-articles", async (req, res) => {
+  // Verify cron secret to prevent unauthorized access
+  const cronSecret = req.headers["x-cron-secret"] as string;
+  const expectedSecret = process.env.CRON_SECRET;
+  if (expectedSecret && cronSecret !== expectedSecret) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  try {
+    console.log("[Cron Job] Starting 8-hour paraphrasing cycle...");
+    const activeKeyIdx = getActiveKeyIndex();
+    console.log(`[Cron Job] Active Gemini key index: ${activeKeyIdx} (out of ${geminiClients.length} keys)`);
+
+    const articles = await fetchAndParaphraseNews();
+    console.log(`[Cron Job] Completed. Processed ${articles.length} articles.`);
+
+    res.json({
+      success: true,
+      processed: articles.length,
+      activeKeyIndex: activeKeyIdx,
+      totalKeys: geminiClients.length,
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    console.error("[Cron Job] Error:", error);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Unknown error",
+      timestamp: new Date().toISOString(),
+    });
+  }
+});
 
 // News API Endpoint
 app.get("/api/news", async (req, res) => {
