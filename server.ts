@@ -2183,7 +2183,7 @@ async function fetchAndParaphraseNews(maxArticles: number = 4, skipThrottle: boo
     }
     
     newsCache = { timestamp: Date.now(), articles: rewrittenArticles };
-    console.log(`[News Task] Successfully processed `${rewrittenArticles.length}` articles (`${paraphrasedCount}` paraphrased, `${rewrittenArticles.length - paraphrasedCount}` stored as fallback).`);
+    console.log("[News Task] Successfully processed " + rewrittenArticles.length + " articles (" + paraphrasedCount + " paraphrased, " + (rewrittenArticles.length - paraphrasedCount) + " stored as fallback).");
     return rewrittenArticles;
   }
   
