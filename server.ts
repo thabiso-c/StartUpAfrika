@@ -1,4 +1,4 @@
-import express from "express";
+﻿import express from "express";
 import * as cheerio from "cheerio";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -222,7 +222,7 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 // Serve uploaded images as static files (local dev only; Vercel uses /tmp)
 app.use("/uploads", express.static(path.join(process.cwd(), "public", "uploads")));
 
-// Multer configuration — use /tmp in production (Vercel read-only FS), public/uploads locally
+// Multer configuration â€” use /tmp in production (Vercel read-only FS), public/uploads locally
 const uploadDir = isVercel ? "/tmp/uploads" : path.join(process.cwd(), "public", "uploads");
 try { if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true }); } catch (_) {}
 const storage = multer.diskStorage({
@@ -234,7 +234,7 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 } });
 
-// ── Editor Auth & Data ────────────────────────────────────────────────────────
+// â”€â”€ Editor Auth & Data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const EDITOR_EMAIL = "letsokothabiso@gmail.com";
 const EDITOR_PASSWORD = process.env.EDITOR_PASSWORD || "startupafrika";
 
@@ -339,7 +339,7 @@ const DEFAULT_COMMUNITY_COMMENTS: Array<any> = [];
 const DEFAULT_COMMUNITY_POLLS = [
   {
     id: "poll_july_2026",
-    monthTitle: "🏆 July 2026 Featured Article of the Month Poll",
+    monthTitle: "ðŸ† July 2026 Featured Article of the Month Poll",
     description: "Cast your vote as a registered member for the most inspiring African tech story featured on StartUpAfrika this month!",
     options: [
       {
@@ -461,7 +461,7 @@ const submissions: Array<{
   date: string;
 }> = loadJsonArray(SUBMISSIONS_FILE, []);
 
-// ── Multi-Key Gemini Client Pool ──────────────────────────────────────────────
+// â”€â”€ Multi-Key Gemini Client Pool â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Collect all available Gemini API keys and create a client for each.
 // Keys are rotated every 8 hours so that each key's daily quota is used
 // in turn, effectively tripling the available daily paraphrasing capacity.
@@ -502,7 +502,7 @@ function getActiveGeminiClient(): GoogleGenAI | null {
   return geminiClients[getActiveKeyIndex()];
 }
 
-// Backward-compatible alias: `ai` now returns the *currently active* client.
+// Backward-compatible alias: \`ai\` returns the first configured key (used by non-rotation features like outreach generation).
 const ai: GoogleGenAI | null = geminiClients.length > 0 ? geminiClients[0] : null;
 
 // Log key pool status at startup
@@ -512,7 +512,7 @@ if (geminiClients.length > 0) {
   console.warn("[Gemini Pool] No Gemini API keys configured. Paraphrasing will be unavailable.");
 }
 
-// ── Editor Auth Routes ───────────────────────────────────────────────────────
+// â”€â”€ Editor Auth Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/editor/login", (req, res) => {
   const { email, password } = req.body;
   if (email !== EDITOR_EMAIL || password !== EDITOR_PASSWORD) {
@@ -533,7 +533,7 @@ app.post("/api/editor/logout", (req, res) => {
   res.json({ success: true });
 });
 
-// ── Executive Admin Auth Routes ───────────────────────────────────────────────
+// â”€â”€ Executive Admin Auth Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/admin/login", (req, res) => {
   const { email, password } = req.body;
   const normalizedEmail = String(email || "").trim().toLowerCase();
@@ -560,7 +560,7 @@ app.post("/api/admin/logout", (_req, res) => {
   res.json({ success: true });
 });
 
-// ── Advert Window & Inquiries Routes ──────────────────────────────────────────
+// â”€â”€ Advert Window & Inquiries Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/adverts", async (_req, res) => {
   res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
   if (db) {
@@ -681,7 +681,7 @@ app.post("/api/adverts/inquire", async (req, res) => {
                 <tr>
                   <td style="padding:8px 0;border-bottom:1px solid #f3f4f6;">
                     <span style="font-size:12px;font-weight:600;color:#6b7280;text-transform:uppercase;">Contact Name</span>
-                    <div style="font-size:14px;color:#111827;margin-top:2px;">${newInquiry.contactName || "—"}</div>
+                    <div style="font-size:14px;color:#111827;margin-top:2px;">${newInquiry.contactName || "â€”"}</div>
                   </td>
                 </tr>
                 <tr>
@@ -731,7 +731,7 @@ app.post("/api/adverts/inquire", async (req, res) => {
 New Ad Space Inquiry - StartUpAfrika
 
 Company: ${newInquiry.companyName}
-Contact Name: ${newInquiry.contactName || "—"}
+Contact Name: ${newInquiry.contactName || "â€”"}
 Email: ${newInquiry.email}
 Budget Range: ${newInquiry.budget}
 Message: ${newInquiry.message || "No message provided."}
@@ -794,7 +794,7 @@ app.delete("/api/admin/inquiries/:id", requireAdminToken, async (req, res) => {
   res.json({ success: true });
 });
 
-// ── Community Platform Routes ──────────────────────────────────────────────────
+// â”€â”€ Community Platform Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/community/topics", (_req, res) => {
   const sorted = [...communityTopics].sort((a, b) => {
     if (a.isPinned && !b.isPinned) return -1;
@@ -1029,7 +1029,7 @@ app.post("/api/community/challenges/:id/submit", (req, res) => {
 });
 
 
-// ── Editor Articles Routes ────────────────────────────────────────────────────
+// â”€â”€ Editor Articles Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.get("/api/editor/articles", requireEditorToken, async (_req, res) => {
   const isStrictEditorArticle = (a: any) => {
     if (!a) return false;
@@ -1151,18 +1151,18 @@ function stripHtml(html: string): string {
 function buildEmailText(article: Article, articleUrl: string, baseUrl: string): string {
   const { title, subtitle, founderName, startupName, body } = article;
   const previewText = stripHtml(body).substring(0, 300);
-  const authorLine = founderName ? `By ${founderName}${startupName ? ` • ${startupName}` : ""}` : "";
+  const authorLine = founderName ? `By ${founderName}${startupName ? ` â€¢ ${startupName}` : ""}` : "";
 
   return `${title}
 ${subtitle ? `${subtitle}\n` : ""}${authorLine ? `${authorLine}\n` : ""}
 
-${previewText}…
+${previewText}â€¦
 
 Read the full article:
 ${articleUrl}
 
 ---
-Startup Afrika — Stories from African founders
+Startup Afrika â€” Stories from African founders
 ${baseUrl}`;
 }
 
@@ -1218,7 +1218,7 @@ function buildEmailHtml(article: Article, articleUrl: string, baseUrl: string): 
                   </td>
                   <td style="padding-left:10px;vertical-align:middle;">
                     <div style="font-size:13px;font-weight:600;color:#1f2937;">${founderName || 'Startup Afrika'}</div>
-                    <div style="font-size:12px;color:#6b7280;">${startupName ? `${startupName} • ` : ''}Startup Afrika</div>
+                    <div style="font-size:12px;color:#6b7280;">${startupName ? `${startupName} â€¢ ` : ''}Startup Afrika</div>
                   </td>
                 </tr>
               </table>
@@ -1233,11 +1233,11 @@ function buildEmailHtml(article: Article, articleUrl: string, baseUrl: string): 
               ` : ''}
 
               <!-- Preview Body -->
-              ${previewText ? `<p style="margin:0 0 24px 0;font-size:14px;color:#374151;line-height:1.6;">${previewText}…</p>` : ''}
+              ${previewText ? `<p style="margin:0 0 24px 0;font-size:14px;color:#374151;line-height:1.6;">${previewText}â€¦</p>` : ''}
 
               <!-- Working CTA Button -->
               <div>
-                <a href="${articleUrl}" target="_blank" style="display:inline-block;background:#047857;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;letter-spacing:0.2px;">Read Full Article →</a>
+                <a href="${articleUrl}" target="_blank" style="display:inline-block;background:#047857;color:#ffffff;font-size:14px;font-weight:600;padding:12px 28px;border-radius:8px;text-decoration:none;letter-spacing:0.2px;">Read Full Article â†’</a>
               </div>
             </td>
           </tr>
@@ -1386,7 +1386,7 @@ app.delete("/api/editor/articles/:id", requireEditorToken, async (req, res) => {
   res.json({ success: true });
 });
 
-// ── Public API Routes ─────────────────────────────────────────────────────────
+// â”€â”€ Public API Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 app.post("/api/articles/sync", async (req, res) => {
   const clientArticles = req.body.articles || [];
   if (!Array.isArray(clientArticles)) {
@@ -1726,7 +1726,7 @@ app.post("/api/submissions", (req, res) => {
 let newsCache: { timestamp: number; articles: any[] } = { timestamp: 0, articles: [] };
 const CACHE_TTL = 60 * 60 * 1000; // 1 hour
 
-// ── Gemini Quota State Persistence ─────────────────────────────────────────────
+// â”€â”€ Gemini Quota State Persistence â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Tracks when the daily quota was exhausted so we can skip Gemini calls
 // until the quota resets (free tier resets daily).
 const QUOTA_STATE_FILE = path.join(dataDir, "gemini_quota_state.json");
@@ -1921,14 +1921,22 @@ async function fetchAndParaphraseNews() {
   };
 
   // Helper: call Gemini with retry-with-backoff on 429
-  // Uses the active rotated key for this 8-hour window
-  const activeKeyIndex = getActiveKeyIndex();
-  const activeClient = getActiveGeminiClient();
+  // Dynamically selects an available (non-exhausted) key for each call,
+  // falling back to other keys in the pool when one is exhausted.
   const callGeminiWithRetry = async (prompt: string, retries = 2): Promise<any> => {
     for (let attempt = 0; attempt <= retries; attempt++) {
+      // Find an available (non-exhausted) key for this call
+      const availableIdx = await getAvailableKeyIndex();
+      if (availableIdx === null) {
+        console.warn("[News Task] Daily Gemini quota completely exhausted. Aborting retry.");
+        const quotaErr: any = new Error("GEMINI_QUOTA_EXHAUSTED");
+        quotaErr.status = 429;
+        quotaErr.isQuotaExhausted = true;
+        throw quotaErr;
+      }
+      const client = geminiClients[availableIdx];
       try {
-        if (!activeClient) throw new Error("No Gemini client available");
-        const aiResponse = await activeClient.models.generateContent({
+        const aiResponse = await client.models.generateContent({
           model: "gemini-2.0-flash-lite",
           contents: prompt,
           config: {
@@ -1946,7 +1954,7 @@ async function fetchAndParaphraseNews() {
         });
         const parsed = JSON.parse(aiResponse.text?.trim() || "{}");
         // Clear quota state for this key on successful call
-        clearKeyExhausted(activeKeyIndex);
+        clearKeyExhausted(availableIdx);
         return parsed;
       } catch (err: any) {
         const errMsg = String(err?.message || "").toLowerCase();
@@ -1954,12 +1962,20 @@ async function fetchAndParaphraseNews() {
         const isDailyExhausted = errMsg.includes("limit: 0") || errDetails.includes("limit: 0");
 
         if (err?.status === 429 && isDailyExhausted) {
-          console.warn("[News Task] Daily Gemini quota completely exhausted. Aborting retry.");
-          markKeyExhausted(activeKeyIndex);
-          const quotaErr: any = new Error("GEMINI_QUOTA_EXHAUSTED");
-          quotaErr.status = 429;
-          quotaErr.isQuotaExhausted = true;
-          throw quotaErr;
+          // Mark this specific key as exhausted
+          markKeyExhausted(availableIdx);
+          // Check if any other key is still available
+          const nextIdx = await getAvailableKeyIndex();
+          if (nextIdx === null) {
+            console.warn("[News Task] Daily Gemini quota completely exhausted. Aborting retry.");
+            const quotaErr: any = new Error("GEMINI_QUOTA_EXHAUSTED");
+            quotaErr.status = 429;
+            quotaErr.isQuotaExhausted = true;
+            throw quotaErr;
+          }
+          console.warn(`[News Task] Key #${availableIdx} daily quota exhausted. Switching to key #${nextIdx}...`);
+          // Continue to next attempt with a different key
+          continue;
         }
 
         if (err?.status === 429 && attempt < retries) {
@@ -1973,9 +1989,11 @@ async function fetchAndParaphraseNews() {
         }
       }
     }
+    // If we exhausted all retries, throw a generic error
+    throw new Error("Gemini API call failed after all retries");
   };
 
-  const rewrittenArticles = [];
+  const rewrittenArticles = [];\n  let paraphrasedCount = 0;
 
   // Check if Gemini quota is already known to be exhausted
   const quotaExhausted = await isQuotaExhausted();
@@ -2010,7 +2028,7 @@ async function fetchAndParaphraseNews() {
 
       if (alreadyExists) {
         // If the existing article was stored unparaphrased and quota is now available, retry paraphrasing
-        if (existingData?.paraphrased === false && ai && !quotaExhausted) {
+        if (existingData?.paraphrased === false && geminiClients.length > 0 && !quotaExhausted) {
           console.log(`[News Task] Retrying paraphrase for previously unparaphrased article: ${article.title}`);
           // Fall through to the paraphrase logic below by treating it as not existing
           alreadyExists = false;
@@ -2159,7 +2177,7 @@ async function fetchAndParaphraseNews() {
     }
     
     newsCache = { timestamp: Date.now(), articles: rewrittenArticles };
-    console.log(`[News Task] Successfully processed ${rewrittenArticles.length} articles.`);
+    console.log(`[News Task] Successfully processed `${rewrittenArticles.length}` articles (`${paraphrasedCount}` paraphrased, `${rewrittenArticles.length - paraphrasedCount}` stored as fallback).`);
     return rewrittenArticles;
   }
   
@@ -2235,7 +2253,7 @@ async function getExistingNewsArticles(): Promise<any[]> {
   return [];
 }
 
-// ── Vercel Cron Job: Paraphrase Articles Every 8 Hours ──────────────────────
+// â”€â”€ Vercel Cron Job: Paraphrase Articles Every 8 Hours â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // This endpoint is called by Vercel's cron job (configured in vercel.json).
 // It fetches fresh news, paraphrases using the currently active Gemini key,
 // and appends new articles to the existing store (never deletes).
@@ -2273,7 +2291,7 @@ app.post("/api/cron/paraphrase-articles", async (req, res) => {
   }
 });
 
-// News API Endpoint — optimized with proper cache headers for faster loading
+// News API Endpoint â€” optimized with proper cache headers for faster loading
 app.get("/api/news", async (req, res) => {
   // Enable browser/CDN caching for 5 minutes to reduce server load and speed up repeat visits
   res.setHeader("Cache-Control", "public, max-age=300, stale-while-revalidate=600");
@@ -2299,7 +2317,7 @@ app.get("/api/news", async (req, res) => {
       // If Gemini quota is exhausted, serve the existing stored articles gracefully
       const isQuotaError = fetchErr?.status === 429 || String(fetchErr?.message).includes("RESOURCE_EXHAUSTED");
       if (isQuotaError && existingArticles.length > 0) {
-        console.warn("[News] Gemini quota exhausted — serving existing stored articles.");
+        console.warn("[News] Gemini quota exhausted â€” serving existing stored articles.");
         newsCache = { timestamp: now, articles: existingArticles };
         return res.json({ articles: existingArticles });
       }
@@ -2386,7 +2404,7 @@ app.post("/api/generate-outreach", async (req, res) => {
   }
 });
 
-// ── Email Client Routes ───────────────────────────────────────────────────────
+// â”€â”€ Email Client Routes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 interface Email {
   id: string;
   account: string; // which email account
@@ -2907,16 +2925,16 @@ function getEmailSignature(account: string): string {
     "adverts@startupafrika.co.za": `
       <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #047857;">
         <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; color: #111827;">
-          <strong style="color: #047857; font-size: 16px;">Startup Afrika — Advertise With Us</strong>
+          <strong style="color: #047857; font-size: 16px;">Startup Afrika â€” Advertise With Us</strong>
         </p>
         <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 13px; color: #4b5563;">
           Reach African tech founders, venture builders, investors, and decision makers.
         </p>
         <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
-          📧 <a href="mailto:advertise@startupafrika.co.za" style="color: #047857; text-decoration: none;">advertise@startupafrika.co.za</a>
+          ðŸ“§ <a href="mailto:advertise@startupafrika.co.za" style="color: #047857; text-decoration: none;">advertise@startupafrika.co.za</a>
         </p>
         <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
-          🌐 <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
+          ðŸŒ <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
         </p>
       </div>
       <!-- signature -->`,
@@ -2924,16 +2942,16 @@ function getEmailSignature(account: string): string {
     "info@startupafrika.co.za": `
       <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #047857;">
         <p style="margin: 0 0 10px 0; font-family: Arial, sans-serif; font-size: 14px; color: #111827;">
-          <strong style="color: #047857; font-size: 16px;">Startup Afrika — Stories from African Founders</strong>
+          <strong style="color: #047857; font-size: 16px;">Startup Afrika â€” Stories from African Founders</strong>
         </p>
         <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 13px; color: #4b5563;">
           We chronicle the real blueprints of African tech innovation.
         </p>
         <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
-          📧 <a href="mailto:info@startupafrika.co.za" style="color: #047857; text-decoration: none;">info@startupafrika.co.za</a>
+          ðŸ“§ <a href="mailto:info@startupafrika.co.za" style="color: #047857; text-decoration: none;">info@startupafrika.co.za</a>
         </p>
         <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
-          🌐 <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
+          ðŸŒ <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
         </p>
       </div>
       <!-- signature -->`,
@@ -2947,10 +2965,10 @@ function getEmailSignature(account: string): string {
           Founder & Editor, Startup Afrika
         </p>
         <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
-          📧 <a href="mailto:thabiso@startupafrika.co.za" style="color: #047857; text-decoration: none;">thabiso@startupafrika.co.za</a>
+          ðŸ“§ <a href="mailto:thabiso@startupafrika.co.za" style="color: #047857; text-decoration: none;">thabiso@startupafrika.co.za</a>
         </p>
         <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
-          🌐 <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
+          ðŸŒ <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
         </p>
       </div>
       <!-- signature -->`,
@@ -2959,10 +2977,10 @@ function getEmailSignature(account: string): string {
   return signatures[account] || `
     <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #047857;">
       <p style="margin: 0 0 5px 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
-        📧 <a href="mailto:${account}" style="color: #047857; text-decoration: none;">${account}</a>
+        ðŸ“§ <a href="mailto:${account}" style="color: #047857; text-decoration: none;">${account}</a>
       </p>
       <p style="margin: 0; font-family: Arial, sans-serif; font-size: 12px; color: #6b7280;">
-        🌐 <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
+        ðŸŒ <a href="${baseUrl}" style="color: #047857; text-decoration: none;">${baseUrl}</a>
       </p>
     </div>
     <!-- signature -->
@@ -2997,14 +3015,14 @@ async function startServer() {
   }
 
   // Only bind a port when running as a standalone process (local dev or Cloud Run).
-  // On Vercel, api/index.ts exports the Express app as a serverless handler —
+  // On Vercel, api/index.ts exports the Express app as a serverless handler â€”
   // calling app.listen() there would start a competing HTTP server and break responses.
   if (!process.env.VERCEL) {
     app.listen(PORT, "0.0.0.0", () => {
       console.log(`[Startup Afrika Server] running on http://localhost:${PORT}`);
     });
   } else {
-    console.log("[Startup Afrika Server] serverless mode — handler exported, skipping app.listen()");
+    console.log("[Startup Afrika Server] serverless mode â€” handler exported, skipping app.listen()");
   }
 }
 
