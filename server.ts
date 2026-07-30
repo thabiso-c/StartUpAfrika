@@ -1884,8 +1884,8 @@ async function storeUnparaphrasedArticle(article: any, stableId: string): Promis
   }
 }
 
-async function fetchAndParaphraseNews() {
-  console.log("[News Task] Starting hourly news fetch & paraphrase...");
+async function fetchAndParaphraseNews(maxArticles: number = 4, skipThrottle: boolean = false) {
+  console.log(`[News Task] Starting fetch & paraphrase (maxArticles=${maxArticles}, skipThrottle=${skipThrottle})...`);
   const apiKey = process.env.GNEWS_API_KEY || process.env.NEWSAPI_KEY;
   if (!apiKey) {
     console.error("[News Task] API key not configured. Please add GNEWS_API_KEY in .env");
@@ -1911,7 +1911,7 @@ async function fetchAndParaphraseNews() {
     imageUrl: a.urlToImage || a.image,
   })).filter((article: any, index: number, self: any[]) =>
     index === self.findIndex((a: any) => a.url === article.url)
-  ).slice(0, 4);
+  ).slice(0, maxArticles);
 
   // Build a set of source URLs already processed (stored in articles as startupName+title combo)
   // Use a stable hash of the URL as the deterministic article ID to enable true deduplication
@@ -2140,9 +2140,13 @@ async function fetchAndParaphraseNews() {
         });
 
         paraphrasedCount++;
-        // Throttle: wait 3 seconds between Gemini calls to stay under rate limits
-        if (i < unique.length - 1) {
+        // Throttle: wait between Gemini calls to stay under rate limits
+        // Skip throttle in cron mode to avoid timeouts
+        if (!skipThrottle && i < unique.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 3000));
+        } else if (skipThrottle && i < unique.length - 1) {
+          // Minimal throttle for cron mode (500ms instead of 3s)
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
 
       } catch (articleErr: any) {
@@ -2273,7 +2277,9 @@ app.post("/api/cron/paraphrase-articles", async (req, res) => {
     const activeKeyIdx = getActiveKeyIndex();
     console.log(`[Cron Job] Active Gemini key index: ${activeKeyIdx} (out of ${geminiClients.length} keys)`);
 
-    const articles = await fetchAndParaphraseNews();
+    // Cron mode: process only 1-2 articles with minimal throttle to avoid timeouts
+    // Vercel free tier has 10s limit, cron-job.org ~30s
+    const articles = await fetchAndParaphraseNews(2, true);
     console.log(`[Cron Job] Completed. Processed ${articles.length} articles.`);
 
     res.json({
