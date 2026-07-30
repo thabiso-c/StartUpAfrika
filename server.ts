@@ -1,4 +1,4 @@
-﻿import express from "express";
+import express from "express";
 import * as cheerio from "cheerio";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -1993,7 +1993,8 @@ async function fetchAndParaphraseNews() {
     throw new Error("Gemini API call failed after all retries");
   };
 
-  const rewrittenArticles = [];\n  let paraphrasedCount = 0;
+  const rewrittenArticles = [];
+  let paraphrasedCount = 0;
 
   // Check if Gemini quota is already known to be exhausted
   const quotaExhausted = await isQuotaExhausted();
@@ -2138,6 +2139,7 @@ async function fetchAndParaphraseNews() {
           articleId: startupAfrikaArticle.id,
         });
 
+        paraphrasedCount++;
         // Throttle: wait 3 seconds between Gemini calls to stay under rate limits
         if (i < unique.length - 1) {
           await new Promise(resolve => setTimeout(resolve, 3000));
