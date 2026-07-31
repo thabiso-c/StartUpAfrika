@@ -15,6 +15,10 @@ import Footer from "./components/Footer";
 import NewsSection from "./components/NewsSection";
 import EditorGate from "./components/editor/EditorGate";
 import CommunityHub from "./components/community/CommunityHub";
+import StartupIntelligence from "./components/StartupIntelligence";
+import StartupsToWatch from "./components/StartupsToWatch";
+import EditorsPick from "./components/EditorsPick";
+import ArticleCard from "./components/ArticleCards";
 import { interviews } from "./data/interviews";
 import { AlertCircle, HelpCircle, BookOpen } from "lucide-react";
 
@@ -70,7 +74,7 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         const sorted = data.sort((a: any, b: any) =>
-          new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+          new Date(b.updatedAt || a.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
         );
         setPublishedArticles(sorted);
         // Persist fresh data to localStorage
@@ -260,7 +264,7 @@ export default function App() {
       case "explore":
         return (
           <div className="animate-fade-in" id="explore-view">
-            {/* Minimalist Substack Hero block */}
+            {/* Editorial Hero with featured article */}
             <Hero 
               user={user} 
               featuredArticle={currentFeatured}
@@ -269,7 +273,73 @@ export default function App() {
               articlesLoading={loadingArticles}
             />
 
-            {/* Main Page "Advertise Your Business" Window */}
+            {/* Editor's Pick */}
+            <EditorsPick 
+              article={currentFeatured}
+              onSelect={(id) => setSelectedInterviewId(id)}
+            />
+
+            {/* Africa Startup Intelligence */}
+            <StartupIntelligence />
+
+            {/* Startups to Watch */}
+            <StartupsToWatch />
+
+            {/* Latest Stories with sophisticated cards */}
+            <section className="bg-off-white py-20 border-t border-gray-100" id="latest-stories">
+              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div className="mb-12">
+                  <p className="text-xs font-bold uppercase tracking-[0.25em] text-accent mb-4">
+                    Latest Stories
+                  </p>
+                  <h2 className="font-display text-4xl sm:text-5xl font-extrabold text-charcoal tracking-tight">
+                    Fresh from the ecosystem
+                  </h2>
+                </div>
+
+                {/* Featured + Compact grid */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                  {/* Main featured story on the left */}
+                  <div className="lg:col-span-8">
+                    {otherArticles.length > 0 && (
+                      <ArticleCard 
+                        article={otherArticles[0]} 
+                        onSelect={(id) => setSelectedInterviewId(id)}
+                        variant="featured"
+                      />
+                    )}
+                  </div>
+
+                  {/* Compact cards on the right */}
+                  <div className="lg:col-span-4 space-y-6">
+                    {otherArticles.slice(1, 4).map((article) => (
+                      <ArticleCard
+                        key={article.id}
+                        article={article}
+                        onSelect={(id) => setSelectedInterviewId(id)}
+                        variant="horizontal"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* More stories in compact grid */}
+                {otherArticles.length > 4 && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
+                    {otherArticles.slice(4).map((article) => (
+                      <ArticleCard
+                        key={article.id}
+                        article={article}
+                        onSelect={(id) => setSelectedInterviewId(id)}
+                        variant="compact"
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
+            </section>
+
+            {/* Advertise Window */}
             <AdvertiseWindow />
 
             {/* News Section */}

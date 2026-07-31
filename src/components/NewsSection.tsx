@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Newspaper, TrendingUp, ArrowRight } from "lucide-react";
+import { Newspaper, TrendingUp, ArrowRight, ExternalLink, Clock } from "lucide-react";
 
 interface NewsArticle {
   title: string;
@@ -104,21 +104,24 @@ export default function NewsSection({ onSelectArticle }: NewsSectionProps) {
 
   if (loading) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-16">
-        <div className="flex items-center gap-2 mb-8 pb-3 border-b border-gray-100">
-          <Newspaper className="w-5 h-5 text-emerald-600" />
-          <h3 className="font-sans font-bold text-gray-900 text-lg">
-            Latest African Tech & Startup News
-          </h3>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="bg-gray-50 rounded-lg p-4 animate-pulse">
-              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
-              <div className="h-3 bg-gray-200 rounded w-full mb-1"></div>
-              <div className="h-3 bg-gray-200 rounded w-2/3"></div>
-            </div>
-          ))}
+      <div className="bg-white py-20 border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 mb-8">
+            <Newspaper className="w-5 h-5 text-accent" />
+            <h3 className="font-display text-2xl font-bold text-charcoal">
+              Latest African Tech & Startup News
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="bg-gray-50 rounded-2xl p-5 animate-pulse">
+                <div className="h-48 bg-gray-200 rounded-xl mb-4" />
+                <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+                <div className="h-3 bg-gray-200 rounded w-full mb-1"></div>
+                <div className="h-3 bg-gray-200 rounded w-2/3"></div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     );
@@ -126,69 +129,79 @@ export default function NewsSection({ onSelectArticle }: NewsSectionProps) {
 
   if (error) {
     return (
-      <div className="max-w-6xl mx-auto px-4 py-16">
-        <div className="flex items-center gap-2 mb-8 pb-3 border-b border-gray-100">
-          <Newspaper className="w-5 h-5 text-emerald-600" />
-          <h3 className="font-sans font-bold text-gray-900 text-lg">
-            Latest Founder News
-          </h3>
-        </div>
-        <div className="text-center py-12 text-gray-400 text-sm">
-          {error}
+      <div className="bg-white py-20 border-t border-gray-100">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center gap-2 mb-8">
+            <Newspaper className="w-5 h-5 text-accent" />
+            <h3 className="font-display text-2xl font-bold text-charcoal">
+              Latest African Tech & Startup News
+            </h3>
+          </div>
+          <div className="text-center py-12 text-gray-400 text-sm">
+            {error}
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-6xl mx-auto px-4 py-16">
-        <div className="flex items-center gap-2 mb-8 pb-3 border-b border-gray-100">
-          <Newspaper className="w-5 h-5 text-emerald-600" />
-          <h3 className="font-sans font-bold text-gray-900 text-lg">
-            Young African Founders & Innovators
-          </h3>
-          <TrendingUp className="w-4 h-4 text-emerald-500 ml-1" />
-        </div>
-        <p className="text-sm text-gray-500 mb-6">
-          Highlighting young developers and founders building the future across Africa
-        </p>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {articles.map((article, index) => (
-          <div
-            key={index}
-            onClick={() => handleArticleClick(article.articleId)}
-            className="group bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md hover:border-emerald-300 transition-all cursor-pointer"
-          >
-            {article.imageUrl && (
-              <div className="h-32 overflow-hidden rounded-md mb-3 bg-gray-100">
-                <img 
-                  src={article.imageUrl} 
-                  alt={article.title}
-                  referrerPolicy="no-referrer"
-                  loading="lazy"
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = 'none';
-                  }}
-                />
-              </div>
-            )}
-            <h4 className="font-bold text-gray-900 text-sm mb-2 line-clamp-2 group-hover:text-emerald-700 transition-colors">
-              {article.title}
-            </h4>
-            <p className="text-xs text-gray-500 line-clamp-2 mb-2">
-              {article.description}
-            </p>
-            <div className="flex items-center justify-between text-xs text-gray-400">
-              <span className="font-medium">Startup Afrika</span>
-              <span>{formatDate(article.publishedAt)}</span>
-            </div>
-            <div className="mt-2 flex items-center text-emerald-600 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
-              Read full article <ArrowRight className="w-3 h-3 ml-1" />
-            </div>
+    <div className="bg-white py-20 border-t border-gray-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-2">
+            <Newspaper className="w-5 h-5 text-accent" />
+            <h3 className="font-display text-2xl font-bold text-charcoal">
+              Latest African Tech & Startup News
+            </h3>
           </div>
-        ))}
+          <TrendingUp className="w-5 h-5 text-emerald-600" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {articles.slice(0, 8).map((article, index) => (
+            <article
+              key={index}
+              onClick={() => handleArticleClick(article.articleId)}
+              className="group cursor-pointer card-luxury bg-white rounded-2xl overflow-hidden border border-gray-100 hover:border-emerald-200 transition-all"
+            >
+              {article.imageUrl && (
+                <div className="aspect-[16/10] overflow-hidden bg-gray-100">
+                  <img 
+                    src={article.imageUrl} 
+                    alt={article.title}
+                    referrerPolicy="no-referrer"
+                    loading="lazy"
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-500"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.display = 'none';
+                    }}
+                  />
+                </div>
+              )}
+              <div className="p-5">
+                <h4 className="font-display text-base font-bold text-charcoal leading-snug mb-2 group-hover:text-emerald-800 transition-colors line-clamp-2">
+                  {article.title}
+                </h4>
+                {article.description && (
+                  <p className="text-sm text-gray-600 line-clamp-2 mb-3">
+                    {article.description}
+                  </p>
+                )}
+                <div className="flex items-center justify-between text-xs text-gray-500">
+                  <span className="font-medium text-charcoal">Startup Afrika</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {formatDate(article.publishedAt)}
+                  </span>
+                </div>
+                <div className="mt-3 flex items-center text-emerald-600 text-xs font-semibold opacity-0 group-hover:opacity-100 transition-opacity">
+                  Read more <ArrowRight className="w-3 h-3 ml-1" />
+                </div>
+              </div>
+            </article>
+          ))}
+        </div>
       </div>
     </div>
   );
