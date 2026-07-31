@@ -8,6 +8,7 @@ interface Props {
   onSelectTopic: (topic: CommunityTopic) => void;
   onCreateTopicClick: () => void;
   onVoteTopic: (topicId: string, voteType: "up" | "down") => void;
+  externalFilter?: { searchQuery?: string; category?: string } | null;
 }
 
 export default function TopicList({
@@ -16,10 +17,23 @@ export default function TopicList({
   onSelectTopic,
   onCreateTopicClick,
   onVoteTopic,
+  externalFilter,
 }: Props) {
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchQuery, setSearchQuery] = useState("");
   const [sortBy, setSortBy] = useState<"TRENDING" | "LATEST">("TRENDING");
+
+  // Apply external filter when received from Hero topic buttons
+  useEffect(() => {
+    if (externalFilter) {
+      if (externalFilter.category) {
+        setSelectedCategory(externalFilter.category);
+      }
+      if (externalFilter.searchQuery) {
+        setSearchQuery(externalFilter.searchQuery);
+      }
+    }
+  }, [externalFilter]);
 
   const categories = [
     "ALL",

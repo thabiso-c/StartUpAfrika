@@ -59,7 +59,15 @@ export default function StartupsToWatch({ startups, onSelect }: StartupsToWatchP
               The most promising African startups shaping the future.
             </p>
           </div>
-          <button className="hidden sm:inline-flex items-center gap-2 px-6 py-3 bg-charcoal text-white font-bold text-xs uppercase tracking-wider rounded-full hover:bg-charcoal-light transition-all">
+          <button 
+            onClick={() => {
+              const startupsSection = document.getElementById("startups");
+              if (startupsSection) {
+                startupsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+              }
+            }}
+            className="hidden sm:inline-flex items-center gap-2 px-6 py-3 bg-charcoal text-white font-bold text-xs uppercase tracking-wider rounded-full hover:bg-charcoal-light transition-all"
+          >
             View all
             <ArrowRight className="w-4 h-4" />
           </button>
@@ -71,6 +79,8 @@ export default function StartupsToWatch({ startups, onSelect }: StartupsToWatchP
             <article
               key={startup.id}
               onClick={() => onSelect && onSelect(startup.id)}
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onSelect && onSelect(startup.id); } }}
               className={`group cursor-pointer card-luxury bg-white rounded-2xl overflow-hidden border transition-all ${
                 startup.featured
                   ? "border-accent/30 shadow-lg shadow-amber-100/50"

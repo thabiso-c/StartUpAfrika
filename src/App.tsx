@@ -169,9 +169,18 @@ export default function App() {
     }
   }, [selectedInterviewId]);
 
+  // Listen for hash changes from Hero topic buttons to navigate to community
   useEffect(() => {
-    fetchPublishedArticles();
-  }, []); // fetch once on mount only — cache handles the rest
+    const handleHashChange = () => {
+      if (window.location.hash === '#community') {
+        setCurrentTab('community');
+        // Clean up the hash without triggering scroll
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    };
+    window.addEventListener('hashchange', handleHashChange);
+    return () => window.removeEventListener('hashchange', handleHashChange);
+  }, []);
 
   const selectedInterview = [...publishedArticles, ...interviews].find((i) => i.id === selectedInterviewId);
 

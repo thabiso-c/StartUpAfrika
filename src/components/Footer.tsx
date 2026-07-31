@@ -6,27 +6,27 @@ export default function Footer() {
 
   const footerLinks = {
     explore: [
-      { name: "Startups", href: "#" },
-      { name: "Funding", href: "#" },
-      { name: "AI", href: "#" },
-      { name: "Fintech", href: "#" },
-      { name: "Founders", href: "#" },
-      { name: "Markets", href: "#" },
+      { name: "Startups", href: "#startups" },
+      { name: "Funding", href: "#intelligence" },
+      { name: "AI", href: "#latest-stories" },
+      { name: "Fintech", href: "#latest-stories" },
+      { name: "Founders", href: "#editors-pick" },
+      { name: "Markets", href: "#intelligence" },
     ],
     africa: [
-      { name: "South Africa", href: "#" },
-      { name: "Nigeria", href: "#" },
-      { name: "Kenya", href: "#" },
-      { name: "Egypt", href: "#" },
-      { name: "Ghana", href: "#" },
-      { name: "All Countries", href: "#" },
+      { name: "South Africa", href: "#latest-stories" },
+      { name: "Nigeria", href: "#latest-stories" },
+      { name: "Kenya", href: "#latest-stories" },
+      { name: "Egypt", href: "#latest-stories" },
+      { name: "Ghana", href: "#latest-stories" },
+      { name: "All Countries", href: "#intelligence" },
     ],
     company: [
-      { name: "About", href: "#" },
-      { name: "Contact", href: "#" },
-      { name: "Advertise", href: "#" },
-      { name: "Newsletter", href: "#" },
-      { name: "Careers", href: "#" },
+      { name: "About", href: "/#about" },
+      { name: "Contact", href: "mailto:info@startupafrika.co.za" },
+      { name: "Advertise", href: "#advertise-window-section" },
+      { name: "Newsletter", href: "#hero-section" },
+      { name: "Careers", href: "mailto:info@startupafrika.co.za?subject=Careers%20Inquiry" },
     ],
   };
 
@@ -85,16 +85,16 @@ export default function Footer() {
               funding, and founders shaping the continent's technology future.
             </p>
             <div className="flex items-center gap-4">
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+              <a href="https://twitter.com/startupafrika" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors" aria-label="Twitter">
                 <Twitter className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+              <a href="https://linkedin.com/company/startupafrika" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors" aria-label="LinkedIn">
                 <Linkedin className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+              <a href="https://instagram.com/startupafrika" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors" aria-label="Instagram">
                 <Instagram className="w-5 h-5" />
               </a>
-              <a href="#" className="text-gray-400 hover:text-white transition-colors">
+              <a href="https://youtube.com/@startupafrika" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white transition-colors" aria-label="YouTube">
                 <Youtube className="w-5 h-5" />
               </a>
             </div>
@@ -170,13 +170,13 @@ export default function Footer() {
               © {currentYear} Startup Afrika Media. All rights reserved.
             </p>
             <div className="flex items-center gap-6">
-              <a href="#" className="text-xs text-gray-400 hover:text-white transition-colors">
+              <a href="/privacy" className="text-xs text-gray-400 hover:text-white transition-colors">
                 Privacy Policy
               </a>
-              <a href="#" className="text-xs text-gray-400 hover:text-white transition-colors">
+              <a href="/terms" className="text-xs text-gray-400 hover:text-white transition-colors">
                 Terms of Service
               </a>
-              <a href="#" className="text-xs text-gray-400 hover:text-white transition-colors">
+              <a href="/cookies" className="text-xs text-gray-400 hover:text-white transition-colors">
                 Cookie Policy
               </a>
             </div>

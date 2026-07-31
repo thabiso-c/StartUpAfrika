@@ -156,7 +156,7 @@ export default function CommunityHub({ user, onRequestLogin, publishedArticles =
       </div>
 
       {/* Main Tab Navigation */}
-      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 overflow-x-auto no-scrollbar">
+      <div className="flex items-center gap-2 border-b border-gray-200 pb-2 overflow-x-auto no-scrollbar" id="main-tab-nav">
         <button
           onClick={() => setActiveTab("forum")}
           className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition-all flex items-center gap-2 whitespace-nowrap ${
