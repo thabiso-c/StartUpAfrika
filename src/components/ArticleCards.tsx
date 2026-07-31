@@ -14,12 +14,13 @@ interface Article {
   createdAt?: string;
   readTime?: number;
   sourceUrl?: string;
+  isBlueprint?: boolean;
 }
 
 interface ArticleCardProps {
   article: Article;
   onSelect: (id: string) => void;
-  variant?: "featured" | "compact" | "horizontal";
+  variant?: "featured" | "compact" | "horizontal" | "editorial-list" | "blueprint";
 }
 
 export default function ArticleCard({ article, onSelect, variant = "featured" }: ArticleCardProps) {
@@ -43,6 +44,116 @@ export default function ArticleCard({ article, onSelect, variant = "featured" }:
     };
     return colors[category || ""] || "bg-gray-100 text-gray-800 border-gray-200";
   };
+
+  // Blueprint variant - premium magazine feature style
+  if (variant === "blueprint") {
+    return (
+      <article
+        onClick={() => onSelect(article.id)}
+        className="group cursor-pointer bg-white rounded-2xl overflow-hidden border border-gray-200 hover:border-emerald-300 hover:shadow-2xl transition-all duration-300"
+      >
+        {article.coverImage && (
+          <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+            <img 
+              src={article.coverImage} 
+              alt={article.title}
+              className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700"
+              referrerPolicy="no-referrer"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+            <div className="absolute top-6 left-6">
+              <span className="inline-block bg-accent text-charcoal text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-md shadow-lg">
+                Founder Blueprint
+              </span>
+            </div>
+          </div>
+        )}
+        <div className="p-8 sm:p-10">
+          <h3 className="font-display text-3xl sm:text-4xl font-extrabold text-charcoal leading-[1.1] mb-4 group-hover:text-emerald-800 transition-colors">
+            {article.title}
+          </h3>
+          {article.subtitle && (
+            <p className="text-xl text-gray-600 leading-relaxed mb-4">
+              {article.subtitle}
+            </p>
+          )}
+          {article.description && (
+            <p className="text-gray-600 leading-relaxed line-clamp-3 mb-6">
+              {article.description}
+            </p>
+          )}
+          <div className="flex items-center gap-4 text-sm text-gray-500 font-mono">
+            <span className="font-bold text-charcoal">
+              {article.founderName || article.startupName || "Startup Afrika"}
+            </span>
+            <span className="text-gray-300">•</span>
+            <span>{formatDate(article.updatedAt || article.createdAt)}</span>
+            {article.readTime && (
+              <>
+                <span className="text-gray-300">•</span>
+                <span>{article.readTime} min read</span>
+              </>
+            )}
+          </div>
+        </div>
+      </article>
+    );
+  }
+
+  // Editorial list variant - clean, typography-focused
+  if (variant === "editorial-list") {
+    return (
+      <article
+        onClick={() => onSelect(article.id)}
+        className="group cursor-pointer py-8 border-b border-gray-200 hover:bg-gray-50 transition-all duration-200 px-4 -mx-4"
+      >
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+          <div className="flex-1">
+            <div className="mb-3">
+              <span className={`text-[11px] font-bold uppercase tracking-wider px-2 py-1 rounded border inline-block ${getCategoryColor(article.category)}`}>
+                {article.category || "Article"}
+              </span>
+            </div>
+            <h4 className="font-display text-xl sm:text-2xl font-bold text-charcoal leading-snug mb-2 group-hover:text-emerald-800 transition-colors">
+              {article.title}
+            </h4>
+            {article.description && (
+              <p className="text-gray-600 leading-relaxed line-clamp-2 mb-3">
+                {article.description}
+              </p>
+            )}
+            <div className="flex items-center gap-3 text-xs text-gray-500 font-mono">
+              <span className="font-semibold text-charcoal">
+                {article.founderName || article.startupName || "Startup Afrika"}
+              </span>
+              <span className="text-gray-300">•</span>
+              <span>{formatDate(article.updatedAt || article.createdAt)}</span>
+              {article.readTime && (
+                <>
+                  <span className="text-gray-300">•</span>
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    {article.readTime} min read
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+          {article.coverImage && (
+            <div className="w-full sm:w-48 h-32 sm:h-32 shrink-0 overflow-hidden rounded-lg bg-gray-100">
+              <img 
+                src={article.coverImage} 
+                alt={article.title}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          )}
+          <ArrowRight className="w-5 h-5 text-gray-400 group-hover:text-charcoal group-hover:translate-x-1 transition-all hidden sm:block" />
+        </div>
+      </article>
+    );
+  }
 
   if (variant === "featured") {
     return (

@@ -449,15 +449,77 @@ export default function InterviewDetail({ interview, onBack }: InterviewDetailPr
             {/* Divider */}
             <div className="border-t border-gray-200 my-16" />
 
-            {/* Related Stories placeholder */}
-            <div>
-              <h3 className="font-display text-2xl font-bold text-charcoal mb-6">
-                Related Stories
-              </h3>
-              <p className="text-gray-500 text-sm">
-                More founder blueprints and African tech intelligence.
-              </p>
-            </div>
+             {/* Read Next - Phase 2: Increase session depth */}
+             <div className="border-t border-gray-200 my-16">
+               <div className="bg-gradient-to-br from-gray-50 to-white rounded-2xl p-8 lg:p-12 border border-gray-100">
+                 <div className="flex items-center gap-4 mb-8">
+                   <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
+                   <h3 className="font-display text-sm font-bold uppercase tracking-[0.2em] text-charcoal">
+                     You May Also Like
+                   </h3>
+                   <div className="h-px flex-1 bg-gradient-to-r from-transparent via-gray-300 to-transparent" />
+                 </div>
+                 
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {/* First recommendation */}
+                   <div className="group cursor-pointer bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-emerald-200 hover:shadow-lg transition-all duration-300">
+                     <div className="aspect-[16/9] overflow-hidden bg-gray-100">
+                       <div className="w-full h-full bg-gradient-to-br from-emerald-600 to-emerald-800 flex items-center justify-center">
+                         <span className="text-white font-display text-xl font-bold">FINTECH</span>
+                       </div>
+                     </div>
+                     <div className="p-6">
+                       <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-2 inline-block">
+                         Founder Blueprint
+                       </span>
+                       <h4 className="font-display text-lg font-bold text-charcoal leading-snug mb-2 group-hover:text-emerald-800 transition-colors">
+                       How Yoco built a R2B fintech empire across Africa
+                       </h4>
+                       <p className="text-sm text-gray-600 line-clamp-2">
+                        Starting from a mobile card reader to processing billions in payments.
+                       </p>
+                     </div>
+                   </div>
+
+                   {/* Second recommendation */}
+                   <div className="group cursor-pointer bg-white rounded-xl overflow-hidden border border-gray-100 hover:border-emerald-200 hover:shadow-lg transition-all duration-300">
+                     <div className="aspect-[16/9] overflow-hidden bg-gray-100">
+                       <div className="w-full h-full bg-gradient-to-br from-blue-600 to-blue-800 flex items-center justify-center">
+                         <span className="text-white font-display text-xl font-bold">AI</span>
+                       </div>
+                     </div>
+                     <div className="p-6">
+                       <span className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-2 inline-block">
+                         Intelligence
+                       </span>
+                       <h4 className="font-display text-lg font-bold text-charcoal leading-snug mb-2 group-hover:text-emerald-800 transition-colors">
+                        Africa's AI boom: 12 startups to watch in 2025
+                       </h4>
+                       <p className="text-sm text-gray-600 line-clamp-2">
+                        From Lagos to Nairobi, these founders are building the continent's AI infrastructure.
+                       </p>
+                     </div>
+                   </div>
+                 </div>
+
+                 {/* More from section */}
+                 <div className="mt-10 pt-8 border-t border-gray-200">
+                   <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-500 mb-4">
+                     More from Startup Afrika
+                   </p>
+                   <div className="flex flex-wrap gap-3">
+                     {["Funding", "AI", "Fintech", "Founders", "Markets"].map((topic) => (
+                       <button
+                         key={topic}
+                         className="px-4 py-2 rounded-full bg-white border border-gray-200 text-xs font-bold uppercase tracking-wider text-gray-700 hover:bg-charcoal hover:text-white transition-all"
+                       >
+                         {topic}
+                       </button>
+                     ))}
+                   </div>
+                 </div>
+               </div>
+             </div>
           </div>
 
           {/* Right 4 Columns: Specs & Sidebar */}

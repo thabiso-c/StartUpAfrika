@@ -1,0 +1,28 @@
+[
+  {
+    "id": "art_slyzah_building_thabiso",
+    "title": "BUILDING SLYZAH: Thabiso's story",
+    "subtitle": "How Thabiso built Slyzah and launched Startup Afrika to chronicle the real blueprints of African tech founders.",
+    "founderName": "Thabiso",
+    "startupName": "Slyzah / Startup Afrika",
+    "location": "Johannesburg, South Africa",
+    "foundedYear": "2024",
+    "tags": [
+      "Slyzah",
+      "Startup Afrika",
+      "Founders",
+      "Tech",
+      "South Africa"
+    ],
+    "coverImage": "https://images.unsplash.com/photo-1522071820081-009f0129c71c?auto=format&fit=crop&w=1200&q=80",
+    "coverHeight": 288,
+    "coverPosition": "center",
+    "body": "\n    <h2>The Spark Behind Slyzah</h2>\n    <p>Slyzah was born out of a desire to create powerful, modern digital platforms for African creators, developers, and entrepreneurs. During the initial development phase, it became clear that while African tech innovation was exploding, the authentic, unfiltered blueprints of how these startups were actually built remained undocumented.</p>\n    \n    <h2>Launching Startup Afrika</h2>\n    <p>To bridge this gap, Startup Afrika was created as a dedicated publication and media channel. Through structured Q&As, code breakdowns, and payment gateway insights, Startup Afrika gives founders a direct voice to share their engineering choices, growth trajectories, and hard-earned lessons.</p>\n\n    <h2>The Blueprint & Future Vision</h2>\n    <p>From local payment integrations like Paystack and Ozow to scalable cloud architectures, building in Africa requires unique resilience. Slyzah and Startup Afrika continue to empower the next generation of builders across the continent.</p>\n  ",
+    "status": "published",
+    "wordCount": 250,
+    "createdAt": "2026-07-20T10:00:00.000Z",
+    "updatedAt": "2026-07-25T12:00:00.000Z",
+    "isEditorArticle": true,
+    "source": "editor"
+  }
+]

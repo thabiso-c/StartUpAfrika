@@ -19,6 +19,7 @@ import StartupIntelligence from "./components/StartupIntelligence";
 import StartupsToWatch from "./components/StartupsToWatch";
 import EditorsPick from "./components/EditorsPick";
 import ArticleCard from "./components/ArticleCards";
+import AfricaStartupPulse from "./components/AfricaStartupPulse";
 import { interviews } from "./data/interviews";
 import { AlertCircle, HelpCircle, BookOpen } from "lucide-react";
 
@@ -279,6 +280,9 @@ export default function App() {
               onSelect={(id) => setSelectedInterviewId(id)}
             />
 
+            {/* Africa Startup Pulse - Phase 2 distinctive feature */}
+            <AfricaStartupPulse />
+
             {/* Africa Startup Intelligence */}
             <StartupIntelligence />
 
@@ -297,9 +301,9 @@ export default function App() {
                   </h2>
                 </div>
 
-                {/* Featured + Compact grid */}
-                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-                  {/* Main featured story on the left */}
+                {/* Asymmetric editorial layout - Phase 2 */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
+                  {/* Main featured story on the left - 8 columns */}
                   <div className="lg:col-span-8">
                     {otherArticles.length > 0 && (
                       <ArticleCard 
@@ -310,30 +314,45 @@ export default function App() {
                     )}
                   </div>
 
-                  {/* Compact cards on the right */}
-                  <div className="lg:col-span-4 space-y-6">
-                    {otherArticles.slice(1, 4).map((article) => (
-                      <ArticleCard
-                        key={article.id}
-                        article={article}
-                        onSelect={(id) => setSelectedInterviewId(id)}
-                        variant="horizontal"
-                      />
-                    ))}
+                  {/* Editorial list on the right - 4 columns */}
+                  <div className="lg:col-span-4">
+                    <div className="bg-white rounded-2xl border border-gray-100 p-6 lg:p-8">
+                      <h3 className="font-display text-xs font-bold uppercase tracking-[0.2em] text-charcoal mb-6">
+                        Latest
+                      </h3>
+                      <div className="space-y-0">
+                        {otherArticles.slice(1, 5).map((article, index) => (
+                          <ArticleCard
+                            key={article.id}
+                            article={article}
+                            onSelect={(id) => setSelectedInterviewId(id)}
+                            variant="editorial-list"
+                          />
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* More stories in compact grid */}
-                {otherArticles.length > 4 && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8">
-                    {otherArticles.slice(4).map((article) => (
-                      <ArticleCard
-                        key={article.id}
-                        article={article}
-                        onSelect={(id) => setSelectedInterviewId(id)}
-                        variant="compact"
-                      />
-                    ))}
+                {/* More stories in editorial list format */}
+                {otherArticles.length > 5 && (
+                  <div className="mt-16">
+                    <div className="bg-white rounded-2xl border border-gray-100 p-6 lg:p-10">
+                      <h3 className="font-display text-xs font-bold uppercase tracking-[0.2em] text-charcoal mb-8">
+                        More Stories
+                      </h3>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-0">
+                        {otherArticles.slice(5).map((article, index) => (
+                          <div key={article.id} className="py-6 border-b border-gray-100 last:border-b-0">
+                            <ArticleCard
+                              article={article}
+                              onSelect={(id) => setSelectedInterviewId(id)}
+                              variant="editorial-list"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
