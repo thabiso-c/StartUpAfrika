@@ -469,6 +469,9 @@ const GEMINI_KEYS: string[] = [
   process.env.GEMINI_API_KEY,
   process.env.GEMINI_API_KEY_2,
   process.env.GEMINI_API_KEY_3,
+  process.env.OPEN_KEY_API,
+  process.env.MISTRAL_API_KEY,
+  process.env.GROK_API_KEY,
 ].filter((k): k is string => !!k && k.trim().length > 0);
 
 const geminiClients: GoogleGenAI[] = GEMINI_KEYS.map(
@@ -483,20 +486,20 @@ const geminiClients: GoogleGenAI[] = GEMINI_KEYS.map(
     })
 );
 
-// 8-hour rotation interval (in milliseconds)
-const ROTATION_INTERVAL = 8 * 60 * 60 * 1000; // 8 hours
+// 4-hour rotation interval (in milliseconds)
+const ROTATION_INTERVAL = 4 * 60 * 60 * 1000; // 4 hours
 
 // Determine which key index is active based on the current time.
-// The rotation is deterministic: floor(timestamp / 8h) % numKeys.
+// The rotation is deterministic: floor(timestamp / 4h) % numKeys.
 // This ensures that even across cold starts on serverless, every instance
-// picks the same key for the same 8-hour window.
+// picks the same key for the same 4-hour window.
 function getActiveKeyIndex(): number {
   if (geminiClients.length === 0) return 0;
   const slot = Math.floor(Date.now() / ROTATION_INTERVAL);
   return slot % geminiClients.length;
 }
 
-// Get the active Gemini client for the current 8-hour window
+// Get the active Gemini client for the current 4-hour window
 function getActiveGeminiClient(): GoogleGenAI | null {
   if (geminiClients.length === 0) return null;
   return geminiClients[getActiveKeyIndex()];
@@ -1480,7 +1483,7 @@ app.get("/api/health", (req, res) => {
     activeKeyIndex,
     rotationSlot: slot,
     nextRotation: new Date((slot + 1) * ROTATION_INTERVAL).toISOString(),
-    rotationIntervalHours: 8,
+    rotationIntervalHours: 4,
   });
 });
 
@@ -2273,7 +2276,7 @@ app.post("/api/cron/paraphrase-articles", async (req, res) => {
   }
 
   try {
-    console.log("[Cron Job] Starting 8-hour paraphrasing cycle...");
+    console.log("[Cron Job] Starting 4-hour paraphrasing cycle...");
     const activeKeyIdx = getActiveKeyIndex();
     console.log(`[Cron Job] Active Gemini key index: ${activeKeyIdx} (out of ${geminiClients.length} keys)`);
 
