@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { Mail, CheckCircle2, AlertCircle } from "lucide-react";
+import React from "react";
+import { Mail, CheckCircle2, AlertCircle, TrendingUp, ArrowRight } from "lucide-react";
 import { User } from "firebase/auth";
 
 export default function Hero({ 
@@ -56,201 +56,184 @@ export default function Hero({
     }
   };
 
-  const scrollContainerRef = React.useRef<HTMLDivElement>(null);
-
-  const scroll = (direction: "left" | "right") => {
-    if (scrollContainerRef.current) {
-      const scrollAmount = 320;
-      scrollContainerRef.current.scrollBy({
-        left: direction === "left" ? -scrollAmount : scrollAmount,
-        behavior: "smooth",
-      });
-    }
-  };
-
+  // Editorial Hero with strong visual hierarchy
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8" id="hero-section">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* Left Column: Big Featured Card */}
-        <div 
-          onClick={() => featuredArticle?.id && onSelectArticle && onSelectArticle(featuredArticle.id)}
-          className={`lg:col-span-9 overflow-hidden rounded-[20px] bg-gradient-to-r from-stone-950 via-emerald-950 to-[#0c3121] text-white flex flex-col md:flex-row justify-between min-h-[500px] relative border border-emerald-900/30 shadow-sm ${featuredArticle ? "cursor-pointer hover:border-emerald-500/50" : "cursor-default"} transition-all group`}
-          id="featured-banner-card"
-        >
-          {/* Card Left Text Section */}
-          <div className="p-10 sm:p-12 flex flex-col justify-between max-w-2xl z-10 relative">
-            <div>
-              {/* Featured Yellow Pill */}
-              <span className="inline-block bg-amber-400 text-black text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-md mb-8">
-                Featured
-              </span>
-              
-              {/* Massive Bold Title */}
-              <h2 className="text-4xl sm:text-5xl md:text-[44px] font-extrabold tracking-tight leading-[1.08] text-white mb-6 group-hover:text-emerald-300 transition-colors">
-                {featuredArticle ? (
-                  featuredArticle.title
-                ) : articlesLoading ? (
-                  <span className="inline-block bg-white/10 rounded-lg w-3/4 h-10 animate-pulse">&nbsp;</span>
-                ) : (
-                  "No featured article yet"
-                )}
-              </h2>
-            </div>
-            
-            {/* Meta Info */}
-            <p className="text-sm font-semibold text-stone-300 uppercase tracking-wider">
-              {featuredArticle ? (
-                `${featuredArticle.founderName || "Founder"} – ${new Date(featuredArticle.updatedAt || featuredArticle.createdAt).toLocaleDateString("en-US", { month: "long", year: "numeric" })}`
-              ) : articlesLoading ? (
-                <span className="inline-block bg-white/10 rounded-lg w-1/2 h-4 animate-pulse">&nbsp;</span>
-              ) : (
-                "Publish your first article to feature it here"
-              )}
-            </p>
-          </div>
-
-          {/* Right Section */}
-          <div className="w-full md:w-[50%] h-[300px] md:h-auto relative overflow-hidden shrink-0">
-            {featuredArticle?.coverImage ? (
-              <img 
-                src={featuredArticle.coverImage} 
-                alt={featuredArticle.founderName || "Featured Article"} 
-                className="w-full h-full object-cover md:absolute md:inset-0 select-none"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <div className="w-full h-full bg-emerald-950/40 border-l border-emerald-900/20"></div>
-            )}
-            {/* Subtle blending gradient from green image to dark background */}
-            <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-emerald-950 to-transparent hidden md:block"></div>
-          </div>
-        </div>
-
-        {/* Right Column: Subscripts subscription card */}
-        <div 
-          className="lg:col-span-3 flex flex-col justify-center bg-white p-6 sm:p-8"
-          id="subscripts-panel"
-        >
-          <h3 className="text-2xl font-bold text-gray-900 tracking-tight mb-2">
-            Subscripts
-          </h3>
-          
-          <p className="text-sm text-gray-500 leading-relaxed mb-6">
-            Subscribe to new updated interviews for readability like Substack.
+    <section className="bg-off-white pt-16 pb-20 border-b border-gray-100" id="hero-section">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Premium editorial hero: big headline dominates */}
+        <div className="max-w-4xl mx-auto text-center mb-16">
+          <p className="text-xs font-bold uppercase tracking-[0.25em] text-accent mb-6">
+            Africa's Startup Ecosystem
           </p>
-
-          {user ? (
-            <div className="text-center py-6 bg-emerald-50 rounded-xl border border-emerald-100">
-              <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-3" />
-              <p className="font-semibold text-emerald-900">You are signed in!</p>
-              <p className="text-sm text-emerald-700 mt-1">You'll receive all updates at {user.email}.</p>
-            </div>
-          ) : (
-            <form onSubmit={handleSubscribe} className="space-y-3.5">
-              <div>
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Email address"
-                  required
-                  className="w-full px-4 py-3 bg-white border border-gray-200 rounded-lg text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all text-sm"
-                  disabled={loading}
-                />
-              </div>
-              
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full py-3 bg-emerald-800 text-white font-bold tracking-wider uppercase rounded-lg text-xs transition-all hover:bg-emerald-900 active:scale-95 flex items-center justify-center"
-              >
-                {loading ? "SUBSCRIBING..." : "SUBSCRIBE"}
-              </button>
-            </form>
-          )}
-
-          {/* Inline alert messages */}
-          {status && !user && (
-            <div
-              className={`mt-4 p-3 rounded-lg text-xs font-semibold flex items-center gap-2.5 ${
-                status.type === "success"
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-100"
-                  : "bg-rose-50 text-rose-800 border border-rose-100"
-              }`}
+          <h1 className="font-display text-5xl sm:text-6xl lg:text-7xl font-extrabold text-charcoal leading-[0.95] mb-8 tracking-tight">
+            The biggest stories shaping Africa's technology economy
+          </h1>
+          <p className="text-lg sm:text-xl text-gray-600 leading-relaxed max-w-2xl mx-auto mb-10 font-light">
+            Curated intelligence for founders, investors, and operators building the future of African tech.
+          </p>
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <a
+              href="#latest-stories"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-charcoal text-white font-bold text-sm tracking-wider uppercase rounded-full hover:bg-charcoal-light transition-all hover:shadow-xl"
             >
-              {status.type === "success" ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              )}
-              <span>{status.message}</span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Previous Featured Articles Gallery */}
-      {previousArticles && previousArticles.length > 0 && (
-        <div className="mt-8">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-sans font-bold text-gray-900 text-lg">
-              Previously Featured
-            </h3>
-            <div className="flex gap-2">
-              <button
-                onClick={() => scroll("left")}
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
-                aria-label="Scroll left"
-              >
-                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <button
-                onClick={() => scroll("right")}
-                className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"
-                aria-label="Scroll right"
-              >
-                <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
+              Explore the latest
+              <ArrowRight className="w-4 h-4" />
+            </a>
+            <a
+              href="#intelligence"
+              className="inline-flex items-center gap-2 px-8 py-4 bg-white text-charcoal font-bold text-sm tracking-wider uppercase rounded-full border border-gray-200 hover:border-charcoal hover:shadow-md transition-all"
+            >
+              View intelligence
+              <TrendingUp className="w-4 h-4" />
+            </a>
           </div>
-          <div 
-            ref={scrollContainerRef}
-            className="flex gap-4 overflow-x-auto scrollbar-hide pb-4"
-            style={{ scrollbarWidth: "none", msOverflowStyle: "none" }}
-          >
-            {previousArticles.map((article) => (
-              <div
-                key={article.id}
-                onClick={() => article?.id && onSelectArticle && onSelectArticle(article.id)}
-                className="flex-shrink-0 w-72 bg-white rounded-xl border border-gray-200 overflow-hidden cursor-pointer hover:shadow-lg transition-all group"
+        </div>
+
+        {/* Split layout: main featured story + sidebar */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
+          {/* Main featured story */}
+          <div className="lg:col-span-8">
+            {featuredArticle && (
+              <article
+                onClick={() => featuredArticle.id && onSelectArticle && onSelectArticle(featuredArticle.id)}
+                className="group cursor-pointer card-luxury bg-white rounded-2xl overflow-hidden border border-gray-100"
               >
-                {article.coverImage && (
-                  <div className="h-40 overflow-hidden">
+                <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+                  {featuredArticle.coverImage ? (
                     <img 
-                      src={article.coverImage} 
-                      alt={article.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      src={featuredArticle.coverImage} 
+                      alt={featuredArticle.title}
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-700 ease-out"
+                      referrerPolicy="no-referrer"
                     />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-charcoal via-emerald-rich to-emerald-deep" />
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/60 to-transparent" />
+                  <div className="absolute top-6 left-6">
+                    <span className="inline-block bg-accent text-charcoal text-[11px] font-bold uppercase tracking-wider px-3 py-1.5 rounded-md">
+                      Featured
+                    </span>
                   </div>
-                )}
-                <div className="p-4">
-                  <h4 className="font-bold text-gray-900 text-sm mb-1 line-clamp-2 group-hover:text-emerald-700 transition-colors">
-                    {article.title}
-                  </h4>
-                  <p className="text-xs text-gray-500">
-                    {article.founderName && `${article.founderName} – `}
-                    {new Date(article.updatedAt || article.createdAt).toLocaleDateString("en-US", { month: "short", year: "numeric" })}
+                </div>
+                <div className="p-8 sm:p-10">
+                  <div className="mb-4">
+                    <span className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+                      {featuredArticle.category || "Editorial"}
+                    </span>
+                  </div>
+                  <h2 className="font-display text-3xl sm:text-4xl font-extrabold text-charcoal leading-[1.1] mb-4 group-hover:text-emerald-800 transition-colors">
+                    {featuredArticle.title}
+                  </h2>
+                  <p className="text-gray-600 leading-relaxed line-clamp-2 mb-6 text-base">
+                    {featuredArticle.subtitle || featuredArticle.description || ""}
                   </p>
+                  <div className="flex items-center gap-4 text-xs text-gray-500 font-mono">
+                    <span className="font-bold text-charcoal">
+                      {featuredArticle.founderName || "Startup Afrika"}
+                    </span>
+                    <span className="text-gray-300">•</span>
+                    <span>
+                      {new Date(featuredArticle.updatedAt || featuredArticle.createdAt).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}
+                    </span>
+                    {featuredArticle.readTime && (
+                      <>
+                        <span className="text-gray-300">•</span>
+                        <span>{featuredArticle.readTime} min read</span>
+                      </>
+                    )}
+                  </div>
+                </div>
+              </article>
+            )}
+            
+            {/* Loading state for featured article */}
+            {articlesLoading && (
+              <div className="bg-white rounded-2xl overflow-hidden border border-gray-100 animate-pulse">
+                <div className="aspect-[16/9] bg-gray-200" />
+                <div className="p-8 sm:p-10 space-y-4">
+                  <div className="h-4 bg-gray-200 rounded w-1/4" />
+                  <div className="h-8 bg-gray-200 rounded w-3/4" />
+                  <div className="h-4 bg-gray-200 rounded w-full" />
+                  <div className="h-4 bg-gray-200 rounded w-2/3" />
                 </div>
               </div>
-            ))}
+            )}
+          </div>
+
+          {/* Sidebar: latest, categories, subscribe card */}
+          <div className="lg:col-span-4 space-y-8">
+            {/* Newsletter / Subscribe card */}
+            <div className="bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+              <h3 className="font-display text-xl font-bold text-charcoal mb-2">
+                The Africa Startup Brief
+              </h3>
+              <p className="text-sm text-gray-600 leading-relaxed mb-6">
+                What matters in Africa's tech ecosystem — delivered weekly.
+              </p>
+              {user ? (
+                <div className="text-center py-8 bg-emerald-50 rounded-xl border border-emerald-100">
+                  <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-3" />
+                  <p className="font-semibold text-emerald-900 text-sm">You're on the list!</p>
+                  <p className="text-xs text-emerald-700 mt-1">{user.email}</p>
+                </div>
+              ) : (
+                <form onSubmit={handleSubscribe} className="space-y-3.5">
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Your email address"
+                    required
+                    disabled={loading}
+                    className="w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
+                  />
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full py-3.5 bg-charcoal text-white font-bold tracking-wider text-xs uppercase rounded-xl transition-all hover:bg-charcoal-light active:scale-95 disabled:opacity-60"
+                  >
+                    {loading ? "SUBSCRIBING..." : "Subscribe →"}
+                  </button>
+                </form>
+              )}
+              {status && !user && (
+                <div
+                  className={`mt-4 p-3 rounded-xl text-xs font-semibold flex items-start gap-2.5 ${
+                    status.type === "success"
+                      ? "bg-emerald-50 text-emerald-800 border border-emerald-100"
+                      : "bg-rose-50 text-rose-800 border border-rose-100"
+                  }`}
+                >
+                  {status.type === "success" ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <span>{status.message}</span>
+                </div>
+              )}
+            </div>
+
+            {/* Smart navigation / category shortcuts */}
+            <div className="bg-white p-6 rounded-2xl border border-gray-100">
+              <h4 className="font-display text-xs font-bold uppercase tracking-widest text-charcoal mb-4">
+                Explore Topics
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {["Startups", "Funding", "AI", "Fintech", "Founders", "Markets", "Policy", "South Africa"].map((topic) => (
+                  <button
+                    key={topic}
+                    className="px-3 py-1.5 rounded-full bg-warm-white text-[11px] font-bold uppercase tracking-wider text-gray-700 hover:bg-charcoal hover:text-white transition-all border border-gray-200"
+                  >
+                    {topic}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
-      )}
-    </div>
+      </div>
+    </section>
   );
 }

@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { signInWithPopup, signOut } from "firebase/auth";
 import { auth, googleProvider } from "../config/firebase";
 import logo from "../assets/images/logo.png";
-import { X, ShieldAlert, CheckCircle2, Loader2, Key } from "lucide-react";
+import { X, ShieldAlert, CheckCircle2, Loader2, Key, Menu } from "lucide-react";
 
 interface HeaderProps {
   currentTab: string;
@@ -19,6 +19,16 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
   const [isDemoSubmitting, setIsDemoSubmitting] = useState(false);
   const [demoSuccess, setDemoSuccess] = useState(false);
   const [demoError, setDemoError] = useState("");
+  const [isScrolled, setIsScrolled] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 20);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   const handleGoogleSignIn = async () => {
     if (!auth) {
@@ -105,36 +115,43 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
 
   return (
     <>
-      <header className="border-b border-gray-100 bg-white sticky top-0 z-40" id="main-header">
-        <div className="max-w-6xl mx-auto px-4 h-20 flex items-center justify-between">
-          {/* Stacked Brand Logo with Africa SVG */}
+      <header 
+        className={`sticky top-0 z-40 transition-all duration-300 ${
+          isScrolled 
+            ? "bg-white/95 backdrop-blur-md shadow-sm border-b border-gray-200" 
+            : "bg-white border-b border-gray-100"
+        }`}
+        id="main-header"
+        style={{ height: isScrolled ? "64px" : "80px" }}
+      >
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex items-center justify-between">
+          {/* Brand Logo */}
           <div 
-            className="flex items-center gap-3.5 cursor-pointer group select-none" 
+            className="flex items-center gap-3 cursor-pointer group select-none" 
             onClick={() => setCurrentTab("explore")}
             id="brand-logo"
           >
-            {/* Detailed SVG Africa Map */}
-            <div className="transition-transform group-hover:scale-105 duration-300">
-              <img src={logo} alt="Startup Afrika Logo" className="w-14 h-14 object-contain" />
+            <div className={`transition-all duration-300 ${isScrolled ? "w-10 h-10" : "w-14 h-14"}`}>
+              <img src={logo} alt="Startup Afrika Logo" className="w-full h-full object-contain" />
             </div>
             <div className="flex flex-col leading-none">
-              <span className="font-sans font-extrabold text-[17px] tracking-[0.14em] text-gray-900 uppercase">
+              <span className="font-display font-extrabold text-[17px] tracking-[0.14em] text-charcoal uppercase">
                 Startup
               </span>
-              <span className="font-sans font-extrabold text-[17px] tracking-[0.14em] text-gray-900 uppercase">
+              <span className="font-display font-extrabold text-[17px] tracking-[0.14em] text-charcoal uppercase">
                 Afrika
               </span>
             </div>
           </div>
 
-          {/* Navigation Items aligned to mockup */}
-          <nav className="flex items-center gap-1.5 sm:gap-6" id="main-nav">
+          {/* Desktop Navigation */}
+          <nav className="hidden md:flex items-center gap-1 sm:gap-6" id="main-nav">
             <button
               onClick={() => setCurrentTab("explore")}
-              className={`px-1 py-2 text-sm font-semibold transition-colors ${
+              className={`px-1 py-2 text-sm font-semibold transition-colors underline-elegant ${
                 currentTab === "explore"
-                  ? "text-emerald-700 font-bold"
-                  : "text-gray-600 hover:text-emerald-600"
+                  ? "text-charcoal font-bold"
+                  : "text-gray-600 hover:text-charcoal"
               }`}
               id="nav-home"
             >
@@ -143,10 +160,10 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
 
             <button
               onClick={() => setCurrentTab("about")}
-              className={`px-1 py-2 text-sm font-semibold transition-colors ${
+              className={`px-1 py-2 text-sm font-semibold transition-colors underline-elegant ${
                 currentTab === "about"
-                  ? "text-emerald-700 font-bold"
-                  : "text-gray-600 hover:text-emerald-600"
+                  ? "text-charcoal font-bold"
+                  : "text-gray-600 hover:text-charcoal"
               }`}
               id="nav-about"
             >
@@ -155,10 +172,10 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
 
             <button
               onClick={() => setCurrentTab("community")}
-              className={`px-1 py-2 text-sm font-semibold transition-colors relative flex items-center gap-1 ${
+              className={`px-1 py-2 text-sm font-semibold transition-colors underline-elegant relative flex items-center gap-1 ${
                 currentTab === "community"
-                  ? "text-emerald-700 font-bold"
-                  : "text-gray-600 hover:text-emerald-600"
+                  ? "text-charcoal font-bold"
+                  : "text-gray-600 hover:text-charcoal"
               }`}
               id="nav-community"
             >
@@ -169,17 +186,17 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
               <div className="flex items-center gap-3 ml-2 sm:ml-4">
                 <div 
                   onClick={() => setCurrentTab("community")}
-                  className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-xl hover:bg-gray-50"
+                  className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity p-1.5 rounded-xl hover:bg-gray-50"
                   title="Go to Member Community Hub"
                 >
                   {user.photoURL ? (
-                    <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border border-emerald-300" />
+                    <img src={user.photoURL} alt="Profile" className="w-8 h-8 rounded-full border-2 border-charcoal/20" />
                   ) : (
-                    <div className="w-8 h-8 rounded-full bg-emerald-800 text-white flex items-center justify-center text-xs font-bold">
+                    <div className="w-8 h-8 rounded-full bg-charcoal text-white flex items-center justify-center text-xs font-bold">
                       {(user.displayName || user.name || "M")[0]}
                     </div>
                   )}
-                  <span className="text-sm font-semibold text-gray-800 hidden sm:block">{user.displayName || user.name}</span>
+                  <span className="text-sm font-semibold text-charcoal hidden lg:block">{user.displayName || user.name}</span>
                 </div>
                 <button
                   onClick={handleSignOut}
@@ -194,18 +211,17 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
                   onClick={() => setIsLoginModalOpen(true)}
                   className={`px-1 py-2 text-sm font-semibold transition-colors ${
                     currentTab === "community" || currentTab === "admin"
-                      ? "text-emerald-700 font-bold"
-                      : "text-gray-600 hover:text-emerald-600"
+                      ? "text-charcoal font-bold"
+                      : "text-gray-600 hover:text-charcoal"
                   }`}
                   id="nav-login"
                 >
                   Log in
                 </button>
 
-
                 <button
                   onClick={onOpenSubscribe}
-                  className="ml-2 sm:ml-4 px-5 py-2.5 bg-emerald-800 text-white font-bold rounded-lg text-xs tracking-wider uppercase transition-all hover:bg-emerald-900 hover:shadow-sm active:scale-95 whitespace-nowrap"
+                  className="ml-2 sm:ml-4 px-6 py-2.5 bg-charcoal text-white font-bold rounded-full text-xs tracking-wider uppercase transition-all hover:bg-charcoal-light hover:shadow-md active:scale-95 whitespace-nowrap"
                   id="nav-subscribe-btn"
                 >
                   Subscribe
@@ -213,22 +229,73 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
               </>
             )}
           </nav>
+
+          {/* Mobile menu button */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className="md:hidden p-2 text-charcoal hover:bg-gray-50 rounded-lg transition-colors"
+          >
+            <Menu className="w-6 h-6" />
+          </button>
         </div>
+
+        {/* Mobile Navigation */}
+        {isMobileMenuOpen && (
+          <div className="md:hidden bg-white border-t border-gray-100 px-4 py-6 space-y-4 animate-fade-in-up">
+            <button
+              onClick={() => {
+                setCurrentTab("explore");
+                setIsMobileMenuOpen(false);
+              }}
+              className="block w-full text-left text-sm font-semibold text-charcoal py-2"
+            >
+              Home
+            </button>
+            <button
+              onClick={() => {
+                setCurrentTab("about");
+                setIsMobileMenuOpen(false);
+              }}
+              className="block w-full text-left text-sm font-semibold text-charcoal py-2"
+            >
+              About Us
+            </button>
+            <button
+              onClick={() => {
+                setCurrentTab("community");
+                setIsMobileMenuOpen(false);
+              }}
+              className="block w-full text-left text-sm font-semibold text-charcoal py-2"
+            >
+              Community
+            </button>
+            {!user && (
+              <button
+                onClick={() => {
+                  setIsLoginModalOpen(true);
+                  setIsMobileMenuOpen(false);
+                }}
+                className="block w-full text-left text-sm font-semibold text-charcoal py-2"
+              >
+                Log in
+              </button>
+            )}
+          </div>
+        )}
       </header>
 
-      {/* Modern, Beautiful Login Modal */}
+      {/* Login Modal */}
       {isLoginModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-sm" id="login-modal">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-gray-100 shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            {/* Header */}
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-charcoal/40 backdrop-blur-sm" id="login-modal">
+          <div className="bg-white rounded-2xl max-w-md w-full border border-gray-100 shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-gray-50 flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="p-2 bg-emerald-50 text-emerald-800 rounded-lg">
+                <div className="p-2 bg-warm-white text-charcoal rounded-lg">
                   <Key className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-900 text-base">Sign In</h3>
-                  <p className="text-xs text-gray-500">Access the editorial workspace & saved tools</p>
+                  <h3 className="font-display font-bold text-charcoal text-base">Sign In</h3>
+                  <p className="text-xs text-gray-500">Access the editorial workspace</p>
                 </div>
               </div>
               <button 
@@ -236,13 +303,12 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
                   setIsLoginModalOpen(false);
                   setDemoError("");
                 }}
-                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+                className="p-1.5 rounded-lg hover:bg-gray-50 text-gray-400 hover:text-charcoal transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Content Body */}
             <div className="p-6 space-y-6">
               {demoError && (
                 <div className="p-3 bg-rose-50 border border-rose-100 rounded-xl text-rose-800 text-xs flex items-start gap-2 leading-relaxed">
@@ -258,14 +324,12 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
                 </div>
               )}
 
-              {/* Real Auth Option */}
               {auth ? (
                 <div>
                   <button
                     onClick={handleGoogleSignIn}
                     className="w-full flex items-center justify-center gap-3 px-4 py-3 bg-white border border-gray-200 hover:bg-gray-50 rounded-lg text-sm font-semibold text-gray-700 transition-all active:scale-[0.98]"
                   >
-                    {/* Google Icon */}
                     <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
                       <path
                         fill="#EA4335"
@@ -297,14 +361,12 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
                 </div>
               )}
 
-              {/* Separator */}
               <div className="relative flex py-2 items-center">
                 <div className="flex-grow border-t border-gray-100"></div>
                 <span className="flex-shrink mx-4 text-gray-400 text-[10px] font-mono tracking-wider uppercase">Or Quick Developer Sign-In</span>
                 <div className="flex-grow border-t border-gray-100"></div>
               </div>
 
-              {/* Developer Bypass Form */}
               <form onSubmit={handleDemoSignIn} className="space-y-4">
                 <div>
                   <label className="block text-xs font-bold uppercase tracking-wider text-gray-500 mb-1.5">
@@ -316,7 +378,7 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
                     value={demoEmail}
                     onChange={(e) => setDemoEmail(e.target.value)}
                     placeholder="e.g. slyzahofficial@gmail.com"
-                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-charcoal placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
                   />
                 </div>
 
@@ -330,14 +392,14 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
                     value={demoName}
                     onChange={(e) => setDemoName(e.target.value)}
                     placeholder="e.g. Thabiso"
-                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all"
+                    className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-lg text-sm text-charcoal placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-all"
                   />
                 </div>
 
                 <button
                   type="submit"
                   disabled={isDemoSubmitting || demoSuccess}
-                  className="w-full py-3 bg-emerald-800 text-white font-bold tracking-wider uppercase rounded-lg text-xs transition-all hover:bg-emerald-900 active:scale-95 flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-charcoal text-white font-bold tracking-wider uppercase rounded-lg text-xs transition-all hover:bg-charcoal-light active:scale-95 flex items-center justify-center"
                 >
                   {isDemoSubmitting ? (
                     <>
@@ -356,5 +418,3 @@ export default function Header({ currentTab, setCurrentTab, onOpenSubscribe, use
     </>
   );
 }
-
-
