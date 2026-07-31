@@ -466,9 +466,6 @@ const submissions: Array<{
 // Keys are rotated every 8 hours so that each key's daily quota is used
 // in turn, effectively tripling the available daily paraphrasing capacity.
 const GEMINI_KEYS: string[] = [
-  process.env.GEMINI_API_KEY,
-  process.env.GEMINI_API_KEY_2,
-  process.env.GEMINI_API_KEY_3,
   process.env.OPEN_KEY_API,
   process.env.MISTRAL_API_KEY,
   process.env.GROK_API_KEY,
@@ -1959,10 +1956,18 @@ async function fetchAndParaphraseNews(maxArticles: number = 4, skipThrottle: boo
         // Clear quota state for this key on successful call
         clearKeyExhausted(availableIdx);
         return parsed;
-      } catch (err: any) {
+        } catch (err: any) {
         const errMsg = String(err?.message || "").toLowerCase();
         const errDetails = JSON.stringify(err?.errorDetails || err?.details || "");
         const isDailyExhausted = errMsg.includes("limit: 0") || errDetails.includes("limit: 0");
+        const isInvalidKey = errMsg.includes("api key") && (errMsg.includes("not valid") || errMsg.includes("invalid")) || errDetails.includes("API_KEY_INVALID");
+
+        if (isInvalidKey) {
+          const keyErr: any = new Error("GEMINI_API_KEY_INVALID");
+          keyErr.status = 400;
+          keyErr.isInvalidKey = true;
+          throw keyErr;
+        }
 
         if (err?.status === 429 && isDailyExhausted) {
           // Mark this specific key as exhausted
@@ -2154,6 +2159,31 @@ async function fetchAndParaphraseNews(maxArticles: number = 4, skipThrottle: boo
 
       } catch (articleErr: any) {
         console.error(`[News Task] Error processing article ${article.url}:`, articleErr?.message || articleErr);
+        if (articleErr?.isInvalidKey || articleErr?.message === "GEMINI_API_KEY_INVALID") {
+          console.warn("[News Task] Invalid Gemini API key detected. Stopping paraphrasing for this session.");
+          await storeUnparaphrasedArticle(article, stableId);
+          rewrittenArticles.push({
+            ...article,
+            title: article.title,
+            description: article.description,
+            articleId: stableId,
+          });
+          for (let j = i + 1; j < unique.length; j++) {
+            const nextArticle = unique[j];
+            const nextId = urlToId(nextArticle.url);
+            const nextExists = articles.some(a => a.id === nextId);
+            if (!nextExists) {
+              await storeUnparaphrasedArticle(nextArticle, nextId);
+            }
+            rewrittenArticles.push({
+              ...nextArticle,
+              title: nextArticle.title,
+              description: nextArticle.description,
+              articleId: nextId,
+            });
+          }
+          break;
+        }
         if (articleErr?.isQuotaExhausted || articleErr?.status === 429) {
           console.warn("[News Task] Quota limit reached. Storing remaining articles unparaphrased.");
           // Store this article unparaphrased
