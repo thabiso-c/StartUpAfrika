@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Mail, CheckCircle2, AlertCircle, TrendingUp, ArrowRight } from "lucide-react";
 import { User } from "firebase/auth";
 
